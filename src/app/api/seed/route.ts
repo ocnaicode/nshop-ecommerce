@@ -6,6 +6,7 @@ import { CustomerProfile, SellerWallet, SubscriptionPlan, CommissionRule, Coupon
 import { Seller } from '@/models/Seller';
 import { Shop, Category } from '@/models/Shop';
 import { Product } from '@/models/Product';
+import { resetIndexes } from '@/lib/seed-utils';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -35,6 +36,26 @@ export async function POST(request: NextRequest) {
       Rider.deleteMany({}),
     ]);
     results.push('🧹 Cleared existing data');
+
+    // Drop every non-_id index and rebuild them from the current schemas.
+    // Stale indexes from older deploys (e.g. an orphaned unique `id_1`) would
+    // otherwise make inserts fail with E11000 duplicate-key errors.
+    await resetIndexes([
+      User,
+      Seller,
+      CustomerProfile,
+      SellerWallet,
+      Shop,
+      Product,
+      Category,
+      SubscriptionPlan,
+      CommissionRule,
+      Coupon,
+      FeatureFlag,
+      SystemConfig,
+      Rider,
+    ]);
+    results.push('🔁 Indexes reset');
 
     // Create Admin
     const adminPassword = await bcrypt.hash('Admin123!', 12);

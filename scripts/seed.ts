@@ -1,11 +1,12 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { User } from '../src/models/User';
-import { CustomerProfile, SellerWallet, SubscriptionPlan, CommissionRule, Coupon, FeatureFlag, SystemConfig } from '../src/models/index';
+import { CustomerProfile, SellerWallet, SubscriptionPlan, CommissionRule, Coupon, FeatureFlag, SystemConfig, Rider } from '../src/models/index';
 import { Seller } from '../src/models/Seller';
 import { Shop, Category } from '../src/models/Shop';
 import { Product } from '../src/models/Product';
 import { Order } from '../src/models/Order';
+import { resetIndexes } from '../src/lib/seed-utils';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/localmart';
 
@@ -31,6 +32,27 @@ async function seed() {
     SystemConfig.deleteMany({}),
   ]);
   console.log('🧹 Cleared existing data');
+
+  // Drop every non-_id index and rebuild them from the current schemas.
+  // Stale indexes from older deploys (e.g. an orphaned unique `id_1`) would
+  // otherwise make inserts fail with E11000 duplicate-key errors.
+  await resetIndexes([
+    User,
+    Seller,
+    CustomerProfile,
+    SellerWallet,
+    Shop,
+    Product,
+    Category,
+    Order,
+    SubscriptionPlan,
+    CommissionRule,
+    Coupon,
+    FeatureFlag,
+    SystemConfig,
+    Rider,
+  ]);
+  console.log('🔁 Indexes reset');
 
   // Create Admin
   const adminPassword = await bcrypt.hash('Admin123!', 12);
@@ -374,7 +396,6 @@ async function seed() {
     isActive: true,
   });
   
-  const { Rider } = await import('../src/models/index');
   await Rider.create({
     userId: riderUser._id,
     name: 'Hasan Rider',
