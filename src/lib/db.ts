@@ -20,11 +20,9 @@ if (!global.mongoose) {
 async function dbConnect(): Promise<typeof mongoose> {
   if (!MONGODB_URI) {
     console.warn('⚠️ MONGODB_URI not set - database operations will fail');
-    // Don't throw during build, only at runtime
     if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
       throw new Error('MONGODB_URI not configured');
     }
-    // Return a mock connection for build time
     return mongoose;
   }
 

@@ -18,7 +18,6 @@ export async function POST(request: NextRequest) {
 
     const results: string[] = [];
 
-    // Clear existing data
     await Promise.all([
       User.deleteMany({}),
       Seller.deleteMany({}),
@@ -36,7 +35,6 @@ export async function POST(request: NextRequest) {
     ]);
     results.push('🧹 Cleared existing data');
 
-    // Create Admin
     const adminPassword = await bcrypt.hash('Admin123!', 12);
     await User.create({
       name: 'Super Admin',
@@ -49,7 +47,6 @@ export async function POST(request: NextRequest) {
     });
     results.push('👤 Admin created');
 
-    // Create Categories
     const categories = await Category.insertMany([
       { name: 'Grocery', slug: 'grocery', icon: '🛒', order: 1, isActive: true },
       { name: 'Electronics', slug: 'electronics', icon: '📱', order: 2, isActive: true },
@@ -59,7 +56,6 @@ export async function POST(request: NextRequest) {
     ]);
     results.push(`📂 Created ${categories.length} categories`);
 
-    // Create Sellers + Shops + Products
     const sellerPassword = await bcrypt.hash('Seller123!', 12);
     const sellerData = [
       { name: 'Rahim Store', business: 'Rahim General Store', phone: '+8801700000001', cat: 0, lat: 23.8103, lng: 90.4125, area: 'Dhanmondi' },
@@ -124,7 +120,6 @@ export async function POST(request: NextRequest) {
     }
     results.push(`🏪 Created ${sellers.length} sellers and shops`);
 
-    // Create Products
     const productData = [
       ['Fresh Rice 5kg', 650, 50, 0],
       ['Soybean Oil 5L', 890, 30, 0],
@@ -132,18 +127,23 @@ export async function POST(request: NextRequest) {
       ['USB-C Charger', 450, 40, 1],
     ];
 
-    for (const [name, price, stock, shopIndex] of productData) {
+    for (const productItem of productData) {
+      const name = productItem[0] as string;
+      const price = productItem[1] as number;
+      const stock = productItem[2] as number;
+      const shopIndex = productItem[3] as number;
+      
       await Product.create({
         sellerId: sellers[shopIndex]._id,
         shopId: shops[shopIndex]._id,
-        name,
+        name: name,
         slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         description: `High quality ${name}`,
         images: [],
         category: categories[shopIndex]._id,
         sku: `SKU-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-        price,
-        stock,
+        price: price,
+        stock: stock,
         lowStockThreshold: 5,
         unit: 'piece',
         status: 'active',
@@ -157,12 +157,10 @@ export async function POST(request: NextRequest) {
     }
     results.push(`📦 Created ${productData.length} products`);
 
-    // Create Customers
     const customerPassword = await bcrypt.hash('Customer123!', 12);
     await User.create({ name: 'Aminul Islam', phone: '+8801700000001', password: customerPassword, role: 'customer', isVerified: true, isActive: true });
     results.push('👥 Created 1 customer');
 
-    // Create Rider
     const riderPassword = await bcrypt.hash('Rider123!', 12);
     const riderUser = await User.create({ name: 'Hasan Rider', phone: '+8801700000099', password: riderPassword, role: 'rider', isVerified: true, isActive: true });
     await Rider.create({ userId: riderUser._id, name: 'Hasan Rider', phone: '+8801700000099', vehicleType: 'motorcycle', vehicleNumber: 'DHAKA-M-123456', serviceArea: { type: 'Point', coordinates: [90.4, 23.75] }, isOnline: true, isActive: true, isAvailable: true, rating: 4.8 });
