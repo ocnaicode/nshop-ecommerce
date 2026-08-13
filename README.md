@@ -447,6 +447,4 @@ Modify CSS variables in `src/app/globals.css`
 
 Built with modern web technologies and best practices for Bangladesh's local commerce ecosystem.
 
----
-
 **Built with ❤️ for local businesses in Bangladesh**
