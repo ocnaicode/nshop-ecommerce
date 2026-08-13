@@ -127,18 +127,23 @@ export async function POST(request: NextRequest) {
       ['USB-C Charger', 450, 40, 1],
     ];
 
-    for (const [name, price, stock, shopIndex] of productData) {
+    for (const productItem of productData) {
+      const name = productItem[0] as string;
+      const price = productItem[1] as number;
+      const stock = productItem[2] as number;
+      const shopIndex = productItem[3] as number;
+      
       await Product.create({
         sellerId: sellers[shopIndex]._id,
         shopId: shops[shopIndex]._id,
-        name,
+        name: name,
         slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         description: `High quality ${name}`,
         images: [],
         category: categories[shopIndex]._id,
         sku: `SKU-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-        price,
-        stock,
+        price: price,
+        stock: stock,
         lowStockThreshold: 5,
         unit: 'piece',
         status: 'active',
