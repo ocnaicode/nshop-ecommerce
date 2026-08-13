@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     results.push(`🏪 Created ${sellers.length} sellers and shops`);
 
     // Create Products
-    const productData = [
+    const productData: [string, number, number, number][] = [
       ['Fresh Rice 5kg', 650, 50, 0],
       ['Soybean Oil 5L', 890, 30, 0],
       ['Wireless Earbuds', 1500, 25, 1],
