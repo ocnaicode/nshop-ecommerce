@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/components/providers/auth-provider';
+import SiteChrome from '@/components/layout/site-chrome';
 
 export const metadata: Metadata = {
   title: 'LocalMart - All Local Shops in One Place',
@@ -18,7 +19,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className="font-sans antialiased">
         <AuthProvider>
-          {children}
+          <SiteChrome>{children}</SiteChrome>
           <Toaster />
         </AuthProvider>
       </body>
