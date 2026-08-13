@@ -2,15 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@/components/providers/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import {
-  Search, MapPin, ShoppingCart, User, Menu, X,
-  Star, Clock, Truck, Store, Package, ChevronRight,
-  Zap, Heart, Tag, Shield
+  Star, Truck, Store, Package, ChevronRight, Tag, Shield,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
@@ -45,38 +41,12 @@ interface Category {
 }
 
 export default function HomePage() {
-  const { user, loading } = useAuth();
   const [location, setLocation] = useState<{ lat: number; lng: number; area: string } | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  useEffect(() => {
-    // Try to get location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            area: 'Your Area',
-          });
-          fetchData(position.coords.latitude, position.coords.longitude);
-        },
-        () => {
-          // Location denied - fetch without location
-          fetchData();
-        }
-      );
-    } else {
-      fetchData();
-    }
-    fetchCategories();
-  }, []);
-
-  async function fetchData(lat?: number, lng?: number) {
+  const fetchData = async (lat?: number, lng?: number) => {
     try {
       const params = new URLSearchParams();
       if (lat && lng) {
@@ -103,9 +73,9 @@ export default function HomePage() {
     } catch (err) {
       console.error('Failed to fetch data:', err);
     }
-  }
+  };
 
-  async function fetchCategories() {
+  const fetchCategories = async () => {
     try {
       const res = await fetch('/api/categories?active=true');
       if (res.ok) {
@@ -115,89 +85,34 @@ export default function HomePage() {
     } catch (err) {
       console.error('Failed to fetch categories:', err);
     }
-  }
+  };
+
+  useEffect(() => {
+    // Try to get location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            area: 'Your Area',
+          });
+          fetchData(position.coords.latitude, position.coords.longitude);
+        },
+        () => {
+          // Location denied - fetch without location
+          fetchData();
+        }
+      );
+    } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchData();
+    }
+    fetchCategories();
+  }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <Link href="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
-                <Store className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-gray-900">LocalMart</span>
-            </Link>
-
-            {/* Search Bar */}
-            <div className="hidden md:flex flex-1 max-w-xl mx-8">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <Input
-                  type="text"
-                  placeholder="Search products, shops..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 w-full"
-                />
-              </div>
-            </div>
-
-            {/* Location */}
-            <div className="hidden lg:flex items-center space-x-2 text-sm text-gray-600 cursor-pointer hover:text-green-600">
-              <MapPin className="w-4 h-4" />
-              <span>{location?.area || 'Select Location'}</span>
-            </div>
-
-            {/* Right Actions */}
-            <div className="flex items-center space-x-4">
-              <Link href="/cart">
-                <Button variant="ghost" size="icon" className="relative">
-                  <ShoppingCart className="w-5 h-5" />
-                </Button>
-              </Link>
-
-              {loading ? (
-                <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse" />
-              ) : user ? (
-                <Link href={user.role === 'seller' ? '/seller' : user.role === 'admin' || user.role === 'super_admin' ? '/admin' : '/customer'}>
-                  <Button variant="ghost" size="icon">
-                    <User className="w-5 h-5" />
-                  </Button>
-                </Link>
-              ) : (
-                <Link href="/login">
-                  <Button size="sm">Login</Button>
-                </Link>
-              )}
-
-              <button
-                className="md:hidden"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              >
-                {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile Search */}
-        <div className="md:hidden px-4 pb-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <Input
-              type="text"
-              placeholder="Search products, shops..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 w-full"
-            />
-          </div>
-        </div>
-      </header>
-
+    <>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
         {/* Hero Section */}
         <section className="bg-gradient-to-r from-green-600 to-green-700 rounded-2xl p-8 md:p-12 text-white">
@@ -438,53 +353,6 @@ export default function HomePage() {
           </div>
         </section>
       </main>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-gray-300 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
-                  <Store className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl font-bold text-white">LocalMart</span>
-              </div>
-              <p className="text-sm">All local shops in one place. Supporting local businesses across Bangladesh.</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-white mb-4">For Customers</h3>
-              <ul className="space-y-2 text-sm">
-                <li><Link href="/shops" className="hover:text-white">Browse Shops</Link></li>
-                <li><Link href="/products" className="hover:text-white">Products</Link></li>
-                <li><Link href="/categories" className="hover:text-white">Categories</Link></li>
-                <li><Link href="/offers" className="hover:text-white">Offers</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-white mb-4">For Sellers</h3>
-              <ul className="space-y-2 text-sm">
-                <li><Link href="/seller/register" className="hover:text-white">Become a Seller</Link></li>
-                <li><Link href="/seller/info" className="hover:text-white">Seller Center</Link></li>
-                <li><Link href="/seller/plans" className="hover:text-white">Pricing</Link></li>
-                <li><Link href="/seller/support" className="hover:text-white">Support</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-white mb-4">Company</h3>
-              <ul className="space-y-2 text-sm">
-                <li><Link href="/about" className="hover:text-white">About Us</Link></li>
-                <li><Link href="/contact" className="hover:text-white">Contact</Link></li>
-                <li><Link href="/terms" className="hover:text-white">Terms</Link></li>
-                <li><Link href="/privacy" className="hover:text-white">Privacy</Link></li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm">
-            <p>&copy; {new Date().getFullYear()} LocalMart. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
-    </div>
+    </>
   );
 }

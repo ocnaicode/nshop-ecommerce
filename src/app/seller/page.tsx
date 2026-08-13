@@ -3,24 +3,97 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { useAuth } from '@/components/providers/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import Sidebar from '@/components/dashboard/sidebar';
+import StatCard from '@/components/dashboard/stat-card';
 import {
   Store, Package, ShoppingCart, Users, TrendingUp,
-  DollarSign, AlertCircle, Settings, LogOut, BarChart3,
-  Plus, List, Truck, CreditCard, Star
+  DollarSign, Settings, BarChart3, Plus, List,
+  Truck, CreditCard, Star, Menu, Percent, Receipt, Star as StarIcon,
 } from 'lucide-react';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
+
+interface DashboardData {
+  stats: {
+    todayRevenue: number;
+    todayOrders: number;
+    pendingOrders: number;
+    totalOrders: number;
+    totalRevenue: number;
+    avgOrderValue: number;
+    conversionRate: number;
+  };
+  trends: {
+    revenue: number;
+    orders: number;
+  };
+  rating: number;
+  totalRatings: number;
+  recentOrders: OrderRow[];
+  topProducts: ProductRow[];
+}
+
+interface OrderRow {
+  _id: string;
+  orderNumber: string;
+  items?: { length?: number };
+  total: number;
+  status: string;
+  createdAt: string;
+}
+
+interface ProductRow {
+  _id: string;
+  name: string;
+  price: number;
+  totalSold: number;
+  images?: string[];
+}
+
+const menuItems = [
+  { icon: BarChart3, label: 'Dashboard', href: '/seller', active: true },
+  { icon: Package, label: 'Products', href: '/seller/products' },
+  { icon: ShoppingCart, label: 'Orders', href: '/seller/orders' },
+  { icon: List, label: 'Inventory', href: '/seller/inventory' },
+  { icon: CreditCard, label: 'POS', href: '/seller/pos' },
+  { icon: Users, label: 'Customers', href: '/seller/customers' },
+  { icon: Truck, label: 'Delivery', href: '/seller/delivery' },
+  { icon: DollarSign, label: 'Wallet', href: '/seller/wallet' },
+  { icon: Star, label: 'Reviews', href: '/seller/reviews' },
+  { icon: Settings, label: 'Settings', href: '/seller/settings' },
+];
+
+function statusVariant(status: string) {
+  if (status === 'delivered') return 'success';
+  if (status === 'pending') return 'warning';
+  if (status === 'cancelled') return 'destructive';
+  return 'secondary';
+}
 
 export default function SellerDashboard() {
   const router = useRouter();
   const { user, loading: authLoading, logout } = useAuth();
-  const [stats, setStats] = useState<any>(null);
-  const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const fetchDashboard = async () => {
+    try {
+      const res = await fetch('/api/seller/dashboard');
+      if (res.ok) {
+        const json = await res.json();
+        setData(json.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch dashboard:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== 'seller')) {
@@ -28,39 +101,16 @@ export default function SellerDashboard() {
       return;
     }
     if (user?.role === 'seller') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchDashboard();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
 
-  async function fetchDashboard() {
-    try {
-      const [ordersRes] = await Promise.all([
-        fetch('/api/orders?limit=5'),
-      ]);
-
-      if (ordersRes.ok) {
-        const data = await ordersRes.json();
-        setRecentOrders(data.data || []);
-
-        // Calculate stats from orders
-        const orders = data.data || [];
-        const today = new Date().toDateString();
-        const todayOrders = orders.filter((o: any) => new Date(o.createdAt).toDateString() === today);
-        const pendingOrders = orders.filter((o: any) => o.status === 'pending');
-
-        setStats({
-          todayRevenue: todayOrders.reduce((sum: number, o: any) => sum + o.total, 0),
-          todayOrders: todayOrders.length,
-          pendingOrders: pendingOrders.length,
-          totalOrders: orders.length,
-        });
-      }
-    } catch (err) {
-      console.error('Failed to fetch dashboard:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const handleLogout = async () => {
+    await logout();
+    router.push('/');
+  };
 
   if (authLoading || !user) {
     return (
@@ -70,239 +120,276 @@ export default function SellerDashboard() {
     );
   }
 
-  const menuItems = [
-    { icon: BarChart3, label: 'Dashboard', href: '/seller', active: true },
-    { icon: Package, label: 'Products', href: '/seller/products' },
-    { icon: ShoppingCart, label: 'Orders', href: '/seller/orders' },
-    { icon: List, label: 'Inventory', href: '/seller/inventory' },
-    { icon: CreditCard, label: 'POS', href: '/seller/pos' },
-    { icon: Users, label: 'Customers', href: '/seller/customers' },
-    { icon: Truck, label: 'Delivery', href: '/seller/delivery' },
-    { icon: DollarSign, label: 'Wallet', href: '/seller/wallet' },
-    { icon: Star, label: 'Reviews', href: '/seller/reviews' },
-    { icon: Settings, label: 'Settings', href: '/seller/settings' },
-  ];
-
-  const handleLogout = async () => {
-    await logout();
-    router.push('/');
-  };
+  const stats = data?.stats;
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
-      {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform lg:translate-x-0 lg:static ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-6 border-b">
-          <Link href="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
-              <Store className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-lg">Seller Panel</span>
-          </Link>
-        </div>
-        <nav className="p-4 space-y-1">
-          {menuItems.map((item) => (
-            <Link
-              key={item.label}
-              href={item.href}
-              className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                item.active
-                  ? 'bg-green-50 text-green-700'
-                  : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <item.icon className="w-5 h-5" />
-              <span>{item.label}</span>
-            </Link>
-          ))}
-        </nav>
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t">
-          <button
-            onClick={handleLogout}
-            className="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 w-full"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Logout</span>
-          </button>
-        </div>
-      </aside>
+      <Sidebar
+        variant="light"
+        brandTitle="Seller Panel"
+        brandSubtitle="LocalMart"
+        brandIcon={Store}
+        items={menuItems}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onLogout={handleLogout}
+      />
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Bar */}
-        <header className="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="lg:hidden"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+        {/* Top bar */}
+        <header className="bg-white shadow-sm px-6 py-4 flex items-center justify-between sticky top-0 z-30">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 rounded-lg hover:bg-gray-100">
+              <Menu className="w-6 h-6" />
             </button>
-            <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
+              <p className="text-xs text-gray-500">Welcome back, {user.name}</p>
+            </div>
           </div>
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-600">Welcome, {user.name}</span>
-            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-              <span className="text-sm font-medium text-green-700">
-                {user.name.charAt(0).toUpperCase()}
-              </span>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-1.5 text-sm text-gray-600">
+              <StarIcon className="w-4 h-4 text-yellow-500 fill-current" />
+              <span className="font-semibold">{data?.rating?.toFixed?.(1) ?? '0.0'}</span>
+              <span className="text-gray-400">({data?.totalRatings || 0})</span>
+            </div>
+            <div className="w-9 h-9 bg-green-100 rounded-full flex items-center justify-center">
+              <span className="text-sm font-semibold text-green-700">{user.name.charAt(0).toUpperCase()}</span>
             </div>
           </div>
         </header>
 
-        {/* Dashboard Content */}
-        <main className="flex-1 p-6 space-y-6">
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Today's Revenue</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {loading ? '...' : formatCurrency(stats?.todayRevenue || 0)}
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                    <DollarSign className="w-6 h-6 text-green-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Today's Orders</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {loading ? '...' : stats?.todayOrders || 0}
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <ShoppingCart className="w-6 h-6 text-blue-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Pending Orders</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {loading ? '...' : stats?.pendingOrders || 0}
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                    <AlertCircle className="w-6 h-6 text-yellow-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Total Orders</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {loading ? '...' : stats?.totalOrders || 0}
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <TrendingUp className="w-6 h-6 text-purple-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <main className="flex-1 p-6 space-y-6 overflow-y-auto">
+          {/* Stats with trends */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <StatCard
+              index={0}
+              label="Today's Revenue"
+              value={formatCurrency(stats?.todayRevenue || 0)}
+              icon={DollarSign}
+              trend={data?.trends.revenue}
+              tone="green"
+              loading={loading}
+            />
+            <StatCard
+              index={1}
+              label="Today's Orders"
+              value={stats?.todayOrders || 0}
+              icon={ShoppingCart}
+              trend={data?.trends.orders}
+              tone="blue"
+              loading={loading}
+            />
+            <StatCard
+              index={2}
+              label="Pending Orders"
+              value={stats?.pendingOrders || 0}
+              icon={Package}
+              tone="yellow"
+              sublabel="Awaiting confirmation"
+              loading={loading}
+            />
+            <StatCard
+              index={3}
+              label="Total Revenue"
+              value={formatCurrency(stats?.totalRevenue || 0)}
+              icon={TrendingUp}
+              tone="purple"
+              sublabel={`${stats?.totalOrders || 0} lifetime orders`}
+              loading={loading}
+            />
           </div>
 
-          {/* Quick Actions */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Link href="/seller/products/new">
-              <Button className="w-full" size="lg">
-                <Plus className="mr-2" /> Add Product
-              </Button>
-            </Link>
-            <Link href="/seller/pos">
-              <Button variant="outline" className="w-full" size="lg">
-                <CreditCard className="mr-2" /> Open POS
-              </Button>
-            </Link>
-            <Link href="/seller/orders">
-              <Button variant="outline" className="w-full" size="lg">
-                <ShoppingCart className="mr-2" /> View Orders
-              </Button>
-            </Link>
-            <Link href="/seller/inventory">
-              <Button variant="outline" className="w-full" size="lg">
-                <Package className="mr-2" /> Inventory
-              </Button>
-            </Link>
+          {/* Performance metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+              <Card className="bg-gradient-to-br from-green-600 to-emerald-700 text-white border-0">
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-green-100 text-sm">Avg Order Value</p>
+                    <Receipt className="w-5 h-5 text-green-200" />
+                  </div>
+                  <p className="text-2xl font-bold mt-2">
+                    {loading ? '…' : formatCurrency(stats?.avgOrderValue || 0)}
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36 }}>
+              <Card className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-0">
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-blue-100 text-sm">Conversion Rate</p>
+                    <Percent className="w-5 h-5 text-blue-200" />
+                  </div>
+                  <p className="text-2xl font-bold mt-2">{loading ? '…' : `${stats?.conversionRate || 0}%`}</p>
+                  <p className="text-xs text-blue-200 mt-1">Delivered vs total orders</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.42 }}>
+              <Card>
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-muted-foreground text-sm">Store Rating</p>
+                    <StarIcon className="w-5 h-5 text-yellow-500" />
+                  </div>
+                  <p className="text-2xl font-bold mt-2 text-gray-900">
+                    {loading ? '…' : data?.rating?.toFixed?.(1) ?? '0.0'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">{data?.totalRatings || 0} ratings</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.48 }}>
+              <Card>
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-muted-foreground text-sm">Total Products</p>
+                    <Package className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <p className="text-2xl font-bold mt-2 text-gray-900">
+                    {data?.topProducts?.length ?? 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Top sellers shown</p>
+                </CardContent>
+              </Card>
+            </motion.div>
           </div>
 
-          {/* Recent Orders */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Recent Orders</CardTitle>
-              <Link href="/seller/orders">
-                <Button variant="ghost" size="sm">View All</Button>
+          {/* Quick actions */}
+          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Quick Actions</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Link href="/seller/products/new">
+                <Button className="w-full justify-start" size="lg">
+                  <Plus className="mr-2" /> Add Product
+                </Button>
               </Link>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-16 bg-gray-100 rounded animate-pulse" />
-                  ))}
-                </div>
-              ) : recentOrders.length > 0 ? (
-                <div className="space-y-3">
-                  {recentOrders.map((order) => (
-                    <Link
-                      key={order._id}
-                      href={`/seller/orders/${order._id}`}
-                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
-                          <ShoppingCart className="w-5 h-5 text-gray-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{order.orderNumber}</p>
-                          <p className="text-sm text-gray-500">
-                            {order.items.length} items • {formatDateTime(order.createdAt)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-gray-900">{formatCurrency(order.total)}</p>
-                        <Badge
-                          variant={
-                            order.status === 'delivered' ? 'success' :
-                            order.status === 'pending' ? 'warning' :
-                            order.status === 'cancelled' ? 'destructive' : 'secondary'
-                          }
+              <Link href="/seller/pos">
+                <Button variant="outline" className="w-full justify-start" size="lg">
+                  <CreditCard className="mr-2" /> Open POS
+                </Button>
+              </Link>
+              <Link href="/seller/orders">
+                <Button variant="outline" className="w-full justify-start" size="lg">
+                  <ShoppingCart className="mr-2" /> Orders
+                </Button>
+              </Link>
+              <Link href="/seller/inventory">
+                <Button variant="outline" className="w-full justify-start" size="lg">
+                  <Package className="mr-2" /> Inventory
+                </Button>
+              </Link>
+            </div>
+          </motion.section>
+
+          {/* Two-column layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Recent orders */}
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }} className="lg:col-span-2">
+              <Card className="h-full">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-lg">Recent Orders</CardTitle>
+                  <Link href="/seller/orders">
+                    <Button variant="ghost" size="sm">View All</Button>
+                  </Link>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-16 bg-gray-100 rounded-lg animate-pulse" />
+                      ))}
+                    </div>
+                  ) : data?.recentOrders?.length ? (
+                    <div className="divide-y divide-gray-100">
+                      {data.recentOrders.map((order) => (
+                        <Link
+                          key={order._id}
+                          href={`/seller/orders/${order._id}`}
+                          className="flex items-center justify-between py-3.5 px-2 hover:bg-gray-50 rounded-lg transition-colors group"
                         >
-                          {order.status}
-                        </Badge>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">No orders yet</p>
-                  <p className="text-sm text-gray-400 mt-1">Orders will appear here when customers place them</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                              <ShoppingCart className="w-5 h-5 text-gray-500" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900 group-hover:text-green-700">{order.orderNumber}</p>
+                              <p className="text-sm text-gray-500">
+                                {order.items?.length || 0} item{(order.items?.length || 0) !== 1 ? 's' : ''} · {formatDateTime(order.createdAt)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold text-gray-900">{formatCurrency(order.total)}</p>
+                            <Badge variant={statusVariant(order.status)}>{order.status}</Badge>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500">No orders yet</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Top products */}
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.62 }}>
+              <Card className="h-full">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-lg">Top Products</CardTitle>
+                  <Link href="/seller/products">
+                    <Button variant="ghost" size="sm">View All</Button>
+                  </Link>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse" />
+                      ))}
+                    </div>
+                  ) : data?.topProducts?.length ? (
+                    <div className="space-y-3">
+                      {data.topProducts.map((product, i) => (
+                        <div key={product._id} className="flex items-center gap-3">
+                          <span className="text-sm font-bold text-gray-400 w-5 text-center">{i + 1}</span>
+                          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden shrink-0">
+                            {product.images?.[0] ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <Package className="w-5 h-5 text-gray-400" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+                            <p className="text-xs text-gray-500">{formatCurrency(product.price)}</p>
+                          </div>
+                          <span className="text-xs font-medium text-green-600 shrink-0">
+                            {product.totalSold || 0} sold
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500">No products yet</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
         </main>
       </div>
     </div>
