@@ -1,10 +1,6 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI;
-
-if (!MONGODB_URI) {
-  throw new Error('Please define the MONGODB_URI environment variable');
-}
+const MONGODB_URI = process.env.MONGODB_URI || '';
 
 interface MongooseCache {
   conn: typeof mongoose | null;
@@ -22,6 +18,16 @@ if (!global.mongoose) {
 }
 
 async function dbConnect(): Promise<typeof mongoose> {
+  if (!MONGODB_URI) {
+    console.warn('⚠️ MONGODB_URI not set - database operations will fail');
+    // Don't throw during build, only at runtime
+    if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
+      throw new Error('MONGODB_URI not configured');
+    }
+    // Return a mock connection for build time
+    return mongoose;
+  }
+
   if (cached.conn) {
     return cached.conn;
   }
@@ -30,10 +36,15 @@ async function dbConnect(): Promise<typeof mongoose> {
     const opts = {
       bufferCommands: false,
       maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 10000,
     };
 
-    cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongoose) => {
+    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
       return mongoose;
+    }).catch((err) => {
+      cached.promise = null;
+      throw err;
     });
   }
 
