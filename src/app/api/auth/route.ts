@@ -6,6 +6,7 @@ import { Seller } from '@/models/Seller';
 import { registerSchema, loginSchema } from '@/validators';
 import { hashPassword, verifyPassword, createToken, setSessionToken } from '@/lib/auth';
 import { generateOTP, normalizeBangladeshPhone, slugify } from '@/lib/utils';
+import { ensureUniqueReferralCode } from '@/lib/referral';
 import { z } from 'zod';
 
 export async function POST(request: NextRequest) {
@@ -77,7 +78,9 @@ async function handleRegister(body: any) {
 
   // Create profile based on role
   if (role === 'customer' || !role) {
-    const referralCode = normalizedPhone.slice(-6) + Math.random().toString(36).substring(2, 5).toUpperCase();
+    const referralCode = await ensureUniqueReferralCode(
+      async (code) => !!(await CustomerProfile.exists({ referralCode: code }))
+    );
     await CustomerProfile.create({
       userId: user._id,
       referralCode,

@@ -7,6 +7,7 @@ import { Shop, Category } from '../src/models/Shop';
 import { Product } from '../src/models/Product';
 import { Order } from '../src/models/Order';
 import { resetIndexes } from '../src/lib/seed-utils';
+import { ensureUniqueReferralCode } from '../src/lib/referral';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/localmart';
 
@@ -363,7 +364,9 @@ async function seed() {
 
     await CustomerProfile.create({
       userId: user._id,
-      referralCode: `REF${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+      referralCode: await ensureUniqueReferralCode(
+        async (code) => !!(await CustomerProfile.exists({ referralCode: code }))
+      ),
       savedAddresses: [{
         label: 'Home',
         name: data.name,
