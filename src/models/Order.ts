@@ -164,7 +164,7 @@ const orderSchema = new Schema<IOrderDocument>(
   { timestamps: true }
 );
 
-orderSchema.index({ orderNumber: 1 });
+// `orderNumber` is already covered by its unique field option.
 orderSchema.index({ customerId: 1, status: 1 });
 orderSchema.index({ sellerId: 1, status: 1 });
 orderSchema.index({ status: 1, createdAt: -1 });

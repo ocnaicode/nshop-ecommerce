@@ -147,7 +147,7 @@ const sellerSchema = new Schema<ISellerDocument>(
   { timestamps: true }
 );
 
-sellerSchema.index({ userId: 1 });
+// `userId` is already covered by its unique field option.
 sellerSchema.index({ status: 1 });
 sellerSchema.index({ 'subscription.plan': 1, 'subscription.status': 1 });
 

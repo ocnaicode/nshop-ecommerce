@@ -57,8 +57,8 @@ const userSchema = new Schema<IUserDocument>(
   { timestamps: true }
 );
 
-userSchema.index({ phone: 1 });
-userSchema.index({ email: 1 });
+// `phone` and `email` are already covered by their unique field options;
+// keep only the non-unique `role` index to avoid duplicate sibling indexes.
 userSchema.index({ role: 1 });
 
 export const User = mongoose.models.User || mongoose.model<IUserDocument>('User', userSchema);

@@ -81,7 +81,6 @@ const shopSchema = new Schema<IShopDocument>(
 );
 
 shopSchema.index({ location: '2dsphere' });
-shopSchema.index({ slug: 1 });
 shopSchema.index({ category: 1, 'location.coordinates': '2dsphere' });
 shopSchema.index({ isFeatured: 1, isOpen: 1 });
 shopSchema.index({ name: 'text', description: 'text' });
@@ -122,7 +121,7 @@ const categorySchema = new Schema<ICategoryDocument>(
   { timestamps: true }
 );
 
-categorySchema.index({ slug: 1 });
+// `slug` is already covered by its unique field option.
 categorySchema.index({ parentId: 1 });
 categorySchema.index({ isActive: 1, order: 1 });
 

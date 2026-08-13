@@ -106,7 +106,6 @@ const productSchema = new Schema<IProductDocument>(
 );
 
 productSchema.index({ location: '2dsphere' });
-productSchema.index({ slug: 1 });
 productSchema.index({ shopId: 1, status: 1 });
 productSchema.index({ category: 1, status: 1 });
 productSchema.index({ price: 1 });

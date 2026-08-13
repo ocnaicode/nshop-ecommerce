@@ -64,8 +64,11 @@ const customerProfileSchema = new Schema<ICustomerProfileDocument>(
   { timestamps: true }
 );
 
-customerProfileSchema.index({ userId: 1 });
-customerProfileSchema.index({ referralCode: 1 });
+// NOTE: `userId` and `referralCode` already get unique indexes from their
+// `unique: true` field options. Declaring non-unique siblings here used to
+// create duplicate `userId_1_1` / `referralCode_1_1` indexes that conflicted
+// with the unique ones and could leave orphaned indexes (e.g. `id_1`) in the
+// database. Only the unique index per field is kept.
 
 export const CustomerProfile = mongoose.models.CustomerProfile ||
   mongoose.model<ICustomerProfileDocument>('CustomerProfile', customerProfileSchema);
