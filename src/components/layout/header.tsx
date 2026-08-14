@@ -7,9 +7,11 @@ import { useAuth } from '@/components/providers/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Store, Search, ShoppingCart, User, Menu, X, MapPin, ChevronDown, LogOut, Package, Heart,
+  Store, Search, ShoppingCart, User, Menu, X, MapPin, ChevronDown, LogOut, Package, Heart, Coins, Gift, CreditCard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { LanguageToggle } from '@/components/ui/language-toggle';
 
 const NAV_LINKS = [
   { label: 'Shops', href: '/shops' },
@@ -102,6 +104,9 @@ export default function Header() {
               <span className="max-w-[120px] truncate">Deliver to</span>
             </Link>
 
+            <ThemeToggle />
+            <LanguageToggle />
+
             <Link href="/cart">
               <Button variant="ghost" size="icon" className="relative" aria-label="Cart">
                 <ShoppingCart className="w-5 h-5" />
@@ -149,6 +154,27 @@ export default function Header() {
                         className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
                       >
                         <Heart className="w-4 h-4" /> Wishlist
+                      </Link>
+                      <Link
+                        href="/loyalty"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        <Coins className="w-4 h-4" /> Loyalty Points
+                      </Link>
+                      <Link
+                        href="/referrals"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        <Gift className="w-4 h-4" /> Refer &amp; Earn
+                      </Link>
+                      <Link
+                        href="/payments"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        <CreditCard className="w-4 h-4" /> Payments
                       </Link>
                       <button
                         onClick={handleLogout}

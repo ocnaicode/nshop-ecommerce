@@ -1,10 +1,16 @@
 // =============================================================================
 // Notification Service - Event-driven notification system
-// Supports in-app, email-ready, SMS-ready, WhatsApp-ready channels
+// Channels: in-app (DB + realtime), email (SendGrid), SMS (Twilio), WhatsApp
+// Email/SMS jobs are enqueued via the queue service (BullMQ or inline fallback).
 // =============================================================================
 
 import dbConnect from '@/lib/db';
+import { User } from '@/models/User';
 import { Notification } from '@/models/index';
+import { orderConfirmationEmail, referralRewardEmail } from './email.service';
+import { orderStatusSms, paymentSms, toE164 } from './sms.service';
+import { emitRealtime } from '@/server/realtime';
+import { enqueueJob } from './queue.service';
 
 export type NotificationEvent =
   | 'order_created'
@@ -106,41 +112,114 @@ export async function sendNotification(payload: NotificationPayload): Promise<vo
     if (!template) return;
 
     const channels = payload.channels || ['in_app'];
+    const title = template.title;
+    const message = template.message(payload.data);
 
     for (const channel of channels) {
-      // In-app notification (always saved to database)
+      // In-app notification (saved to database + pushed via socket)
       if (channel === 'in_app') {
-        await Notification.create({
+        const notification = await Notification.create({
           userId: payload.userId,
           type: payload.event,
-          title: template.title,
-          message: template.message(payload.data),
+          title,
+          message,
           data: payload.data,
           channel: 'in_app',
           isRead: false,
         });
+
+        emitRealtime({
+          userId: payload.userId,
+          event: 'notification',
+          data: {
+            id: notification._id.toString(),
+            type: payload.event,
+            title,
+            message,
+            at: new Date().toISOString(),
+          },
+        });
       }
 
-      // SMS-ready (log for now, integrate provider later)
-      if (channel === 'sms') {
-        console.log(`[SMS Notification] To: ${payload.userId}, Event: ${payload.event}, Message: ${template.message(payload.data)}`);
-        // TODO: Integrate SMS provider (e.g., SSL Wireless, Mim SMS)
-      }
-
-      // Email-ready (log for now, integrate provider later)
+      // Email via SendGrid (queued)
       if (channel === 'email') {
-        console.log(`[Email Notification] To: ${payload.userId}, Subject: ${template.title}, Body: ${template.message(payload.data)}`);
-        // TODO: Integrate email provider (e.g., SendGrid, SES)
+        const email = buildEmailTemplate(payload.event, payload.data, title, message);
+        if (email) {
+          const user = await User.findById(payload.userId).select('email phone').lean();
+          if (user?.email) {
+            await enqueueJob({
+              name: 'send-email',
+              data: { ...email, to: user.email },
+            });
+          }
+        }
+      }
+
+      // SMS via Twilio (queued)
+      if (channel === 'sms') {
+        const smsBody = buildSmsTemplate(payload.event, payload.data);
+        if (smsBody) {
+          const user = await User.findById(payload.userId).select('phone').lean();
+          if (user?.phone) {
+            await enqueueJob({
+              name: 'send-sms',
+              data: { to: toE164(user.phone), body: smsBody },
+            });
+          }
+        }
       }
 
       // WhatsApp-ready (log for now)
       if (channel === 'whatsapp') {
-        console.log(`[WhatsApp Notification] To: ${payload.userId}, Message: ${template.message(payload.data)}`);
-        // TODO: Integrate WhatsApp Business API
+        console.log(`[WhatsApp Notification] To: ${payload.userId}, Message: ${message}`);
       }
     }
   } catch (error) {
     console.error('Notification error:', error);
+  }
+}
+
+function buildEmailTemplate(
+  event: NotificationEvent,
+  data: Record<string, unknown> | undefined,
+  title: string,
+  message: string
+): { subject: string; html: string } | null {
+  const orderNumber = data?.orderNumber as string | undefined;
+  const amount = data?.amount as number | undefined;
+
+  switch (event) {
+    case 'order_created': {
+      const tpl = orderConfirmationEmail(orderNumber || '', 'there', amount || 0);
+      return { subject: tpl.subject, html: tpl.html || '' };
+    }
+    case 'order_delivered':
+      return { subject: title, html: `<p>${message}</p>` };
+    case 'payment_success':
+      return { subject: `Payment received — LocalMart`, html: `<p>${message}</p>` };
+    case 'referral_rewarded': {
+      const tpl = referralRewardEmail(amount || 0, (data?.referredName as string) || 'A friend');
+      return { subject: tpl.subject, html: tpl.html || '' };
+    }
+    default:
+      return { subject: title, html: `<p>${message}</p>` };
+  }
+}
+
+function buildSmsTemplate(event: NotificationEvent, data: Record<string, unknown> | undefined): string | null {
+  const orderNumber = (data?.orderNumber as string) || '';
+  switch (event) {
+    case 'order_created':
+    case 'order_accepted':
+    case 'order_ready':
+    case 'order_picked_up':
+    case 'order_delivered':
+    case 'order_cancelled':
+      return orderStatusSms(orderNumber, event.replace('order_', '').replace('_', ' '));
+    case 'payment_success':
+      return paymentSms(orderNumber, Number(data?.amount || 0));
+    default:
+      return null;
   }
 }
 
@@ -155,6 +234,11 @@ export async function getUserNotifications(userId: string, limit = 20) {
 export async function markNotificationRead(notificationId: string) {
   await dbConnect();
   return Notification.findByIdAndUpdate(notificationId, { isRead: true });
+}
+
+export async function markAllNotificationsRead(userId: string) {
+  await dbConnect();
+  return Notification.updateMany({ userId, isRead: false }, { isRead: true });
 }
 
 export async function getUnreadCount(userId: string) {

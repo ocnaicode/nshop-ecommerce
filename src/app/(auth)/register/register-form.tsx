@@ -22,6 +22,7 @@ export default function RegisterForm() {
     password: '',
     confirmPassword: '',
     role: searchParams.get('role') || 'customer',
+    referralCode: searchParams.get('ref') || '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -49,6 +50,7 @@ export default function RegisterForm() {
         email: formData.email,
         password: formData.password,
         role: formData.role,
+        referralCode: formData.referralCode || undefined,
       });
       toast.success('Registration successful!');
       router.push(formData.role === 'seller' ? '/seller' : '/');

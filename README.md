@@ -1,19 +1,24 @@
 # LocalMart - Location-Based Local Marketplace
 
-A production-ready, full-stack location-based marketplace platform for Bangladesh. Built with Next.js, TypeScript, MongoDB, and Tailwind CSS.
+A production-ready, full-stack location-based marketplace platform for Bangladesh. Built with Next.js, TypeScript, MongoDB, Tailwind CSS, Redis, BullMQ and socket.io.
+
+**135 routes** (73 pages + 62 API endpoints) · **15+ services** · TypeScript clean · Production build passes
 
 ## 🌟 Features
 
 ### For Customers
 - **Location-based discovery** - Find nearby shops and products
 - **Multi-vendor marketplace** - Shop from multiple local sellers
-- **Multiple payment methods** - Cash on Delivery, bKash, Nagad (payment abstraction ready)
+- **Multiple payment methods** - Cash on Delivery, bKash, Nagad, SSLCommerz (live gateways + sandbox simulation)
 - **Multiple delivery options** - Seller delivery, platform delivery, self pickup
-- **Order tracking** - Real-time order status updates
+- **Order tracking** - Real-time order status updates (socket.io push + REST fallback)
 - **Reviews & ratings** - Rate products and sellers
 - **Wishlist & favorites** - Save products and shops
 - **Loyalty points** - Earn and redeem points
 - **Referral program** - Refer friends and earn rewards
+- **Payment history** - Track every transaction across gateways
+- **Multi-language** - English (EN) and Bengali (বাংলা)
+- **Dark mode** - Light/dark/system theming with accessibility support
 
 ### For Sellers
 - **Digital storefront** - Create and manage your shop
@@ -46,8 +51,58 @@ A production-ready, full-stack location-based marketplace platform for Banglades
 - **Authentication**: JWT with secure httpOnly cookies
 - **Validation**: Zod
 - **File Storage**: Cloudinary (ready)
-- **Payment**: Abstracted payment providers (COD, bKash, Nagad ready)
+- **Payment**: bKash, Nagad, SSLCommerz (tokenized gateway integrations), COD
+- **Realtime**: socket.io custom server (live order/notification/chat updates)
+- **Email**: SendGrid (transactional templates)
+- **SMS**: Twilio (order updates, OTP)
+- **Caching**: Redis (ioredis) with in-memory fallback
+- **Queue**: BullMQ background jobs with in-memory fallback
+- **Analytics**: Aggregated dashboards with Recharts visualizations
 - **AI**: Optional, provider-agnostic AI features
+
+## 📦 Services (15)
+
+| Service | Responsibility |
+|---|---|
+| `payment.service` | Payment orchestration across all gateways |
+| `bkash.service` | bKash tokenized checkout (sandbox fallback) |
+| `nagad.service` | Nagad checkout & verification (sandbox fallback) |
+| `sslcommerz.service` | SSLCommerz hosted checkout & IPN validation (sandbox fallback) |
+| `email.service` | SendGrid transactional email |
+| `sms.service` | Twilio SMS with E.164 normalization |
+| `notification.service` | In-app + email + SMS notifications with realtime push |
+| `realtime` (server) | socket.io auth, rooms, event fan-out |
+| `cache.service` | Redis cache wrapper with memory fallback |
+| `queue.service` | BullMQ job queue with inline fallback |
+| `loyalty.service` | Points earning, redemption, history |
+| `referral.service` | Referral codes, rewards, stats |
+| `analytics.service` | Aggregations for the analytics dashboard |
+| `export.service` | RFC-4180 CSV export |
+| `ai.service` | Provider-agnostic AI features |
+
+## 🔌 Realtime Server
+
+Run the app with live socket.io updates:
+
+```bash
+npm run dev:realtime       # development
+npm run build && npm run start:realtime   # production
+```
+
+The standard `next dev` / `next start` flows also work — the UI automatically
+falls back to REST polling when the socket is unavailable (e.g. Vercel).
+
+## ⚙️ Environment
+
+See `.env.example` for all variables. Key additions:
+
+- `BKASH_APP_KEY` / `BKASH_APP_SECRET` — bKash (empty = sandbox simulation)
+- `NAGAD_MERCHANT_ID` / `NAGAD_PUBLIC_KEY` — Nagad (empty = sandbox simulation)
+- `SSLCOMMERZ_STORE_ID` / `SSLCOMMERZ_STORE_PASSWORD` — SSLCommerz (empty = sandbox simulation)
+- `SENDGRID_API_KEY` — email delivery (empty = console log)
+- `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_PHONE_NUMBER` — SMS (empty = console log)
+- `REDIS_URL` — Redis for caching + BullMQ (empty = in-memory fallback)
+- `REFERRER_REWARD_POINTS` / `REFERRED_REWARD_POINTS` — loyalty rewards
 
 ## 📋 Prerequisites
 

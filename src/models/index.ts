@@ -157,7 +157,9 @@ export interface IPaymentDocument extends Document {
   status: string;
   transactionId?: string;
   gatewayResponse?: Record<string, unknown>;
+  gatewayReference?: string;
   refundAmount?: number;
+  refundedAt?: Date;
 }
 
 const paymentSchema = new Schema<IPaymentDocument>(
@@ -165,7 +167,7 @@ const paymentSchema = new Schema<IPaymentDocument>(
     orderId: { type: Schema.Types.ObjectId, ref: 'Order', required: true, index: true },
     customerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     sellerId: { type: Schema.Types.ObjectId, ref: 'Seller', required: true },
-    method: { type: String, enum: ['cod', 'bkash', 'nagad'], required: true },
+    method: { type: String, enum: ['cod', 'bkash', 'nagad', 'sslcommerz'], required: true },
     amount: { type: Number, required: true, min: 0 },
     status: {
       type: String,
@@ -174,7 +176,9 @@ const paymentSchema = new Schema<IPaymentDocument>(
     },
     transactionId: String,
     gatewayResponse: Schema.Types.Mixed,
+    gatewayReference: String,
     refundAmount: { type: Number, default: 0 },
+    refundedAt: Date,
   },
   { timestamps: true }
 );

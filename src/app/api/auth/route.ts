@@ -42,7 +42,7 @@ async function handleRegister(body: any) {
     );
   }
 
-  const { name, phone, email, password, role } = validation.data;
+  const { name, phone, email, password, role, referralCode } = validation.data;
   const normalizedPhone = normalizeBangladeshPhone(phone);
 
   // Check if user already exists
@@ -77,10 +77,10 @@ async function handleRegister(body: any) {
 
   // Create profile based on role
   if (role === 'customer' || !role) {
-    const referralCode = normalizedPhone.slice(-6) + Math.random().toString(36).substring(2, 5).toUpperCase();
-    await CustomerProfile.create({
+    const generatedCode = normalizedPhone.slice(-6) + Math.random().toString(36).substring(2, 5).toUpperCase();
+    const profile = await CustomerProfile.create({
       userId: user._id,
-      referralCode,
+      referralCode: generatedCode,
       savedAddresses: [],
       favoriteShops: [],
       favoriteProducts: [],
@@ -88,6 +88,22 @@ async function handleRegister(body: any) {
       recentlyViewed: [],
       loyaltyPoints: 0,
     });
+
+    // Apply referral code if provided
+    if (referralCode) {
+      try {
+        const { applyReferralCode } = await import('@/services/referral.service');
+        const result = await applyReferralCode(user._id.toString(), referralCode);
+        if (!result.success) {
+          console.warn(`[referral] ${result.error}`);
+        }
+      } catch (err) {
+        console.error('[referral] apply failed:', err);
+      }
+    } else {
+      // Ensure profile has its own code even when referral applied
+      await profile.save();
+    }
   }
 
   // Generate token and set session

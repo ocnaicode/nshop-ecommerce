@@ -4,6 +4,7 @@ import { Order } from '@/models/Order';
 import { Product } from '@/models/Product';
 import { getSession } from '@/lib/auth';
 import { sendNotification } from '@/services/notification.service';
+import { emitRealtime } from '@/server/realtime';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   pending: ['accepted', 'cancelled'],
@@ -73,6 +74,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
              status === 'accepted' ? 'order_accepted' :
              status === 'ready' ? 'order_ready' : 'order_created',
       data: { orderNumber: order.orderNumber },
+    });
+
+    // Realtime push to the customer's dashboard
+    emitRealtime({
+      userId: order.customerId.toString(),
+      event: 'order_update',
+      data: { orderId: order._id.toString(), orderNumber: order.orderNumber, status, updatedBy: 'seller' },
     });
 
     return NextResponse.json({ success: true, data: order });

@@ -99,6 +99,29 @@ export default function CheckoutPage() {
 
       const data = await res.json();
       if (data.success) {
+        const orderId = data.data._id;
+
+        // Online payment: initiate the gateway session and redirect
+        if (formData.paymentMethod !== 'cod') {
+          const payRes = await fetch('/api/payments/initiate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderId,
+              method: formData.paymentMethod,
+            }),
+          });
+          const payData = await payRes.json();
+          if (payData.success && payData.data?.redirectUrl) {
+            toast.success('Order placed! Redirecting to payment...');
+            window.location.href = payData.data.redirectUrl;
+            return;
+          }
+          toast.error(payData.error || 'Payment initiation failed');
+          router.push(`/customer/orders/${orderId}`);
+          return;
+        }
+
         toast.success('Order placed successfully!');
         router.push(`/customer/orders/${data.data._id}`);
       } else {
@@ -238,16 +261,15 @@ export default function CheckoutPage() {
               <CardContent className="space-y-3">
                 {[
                   { id: 'cod', label: 'Cash on Delivery', desc: 'Pay when you receive', fee: '৳10' },
-                  { id: 'bkash', label: 'bKash', desc: 'Pay with bKash (coming soon)', disabled: true },
-                  { id: 'nagad', label: 'Nagad', desc: 'Pay with Nagad (coming soon)', disabled: true },
+                  { id: 'bkash', label: 'bKash', desc: 'Pay with bKash', fee: 'Secure' },
+                  { id: 'nagad', label: 'Nagad', desc: 'Pay with Nagad', fee: 'Secure' },
+                  { id: 'sslcommerz', label: 'SSLCommerz', desc: 'Cards, internet banking & wallets', fee: 'Secure' },
                 ].map((method) => (
                   <label
                     key={method.id}
                     className={`flex items-center justify-between p-4 rounded-lg border-2 cursor-pointer transition-colors ${
                       formData.paymentMethod === method.id
                         ? 'border-green-600 bg-green-50'
-                        : method.disabled
-                        ? 'border-gray-100 opacity-50 cursor-not-allowed'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -258,7 +280,6 @@ export default function CheckoutPage() {
                         value={method.id}
                         checked={formData.paymentMethod === method.id}
                         onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                        disabled={method.disabled}
                       />
                       <div>
                         <p className="font-medium">{method.label}</p>

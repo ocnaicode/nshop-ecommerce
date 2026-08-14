@@ -72,6 +72,7 @@ export const PAYMENT_METHOD = {
   COD: 'cod',
   BKASH: 'bkash',
   NAGAD: 'nagad',
+  SSLCOMMERZ: 'sslcommerz',
 } as const;
 
 export const DELIVERY_METHOD = {

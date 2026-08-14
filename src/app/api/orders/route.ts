@@ -9,6 +9,8 @@ import { User } from '@/models/User';
 import { getSession, isAdmin } from '@/lib/auth';
 import { checkoutSchema, orderStatusSchema } from '@/validators';
 import { generateOrderNumber, generatePickupCode, calculateDistance, getPaginationParams } from '@/lib/utils';
+import { earnPoints } from '@/services/loyalty.service';
+import { emitRealtime } from '@/server/realtime';
 
 export async function GET(request: NextRequest) {
   try {
@@ -350,6 +352,45 @@ export async function POST(request: NextRequest) {
 
     // Update shop order count
     await Shop.findByIdAndUpdate(seller.shopId, { $inc: { totalOrders: 1 } });
+
+    // Realtime events: notify customer + seller dashboards instantly
+    emitRealtime({
+      userId: session.id,
+      event: 'order_update',
+      data: { orderId: order._id.toString(), orderNumber: order.orderNumber, status: 'pending', total: order.total },
+    });
+    emitRealtime({
+      userId: seller.userId?.toString() || '',
+      sellerId,
+      event: 'new_order',
+      data: { orderId: order._id.toString(), orderNumber: order.orderNumber, total: order.total },
+    });
+
+    // Notifications (in-app + email/SMS via queue)
+    const { sendNotification } = await import('@/services/notification.service');
+    await sendNotification({
+      userId: session.id,
+      event: 'order_created',
+      data: { orderNumber: order.orderNumber },
+      channels: ['in_app', 'email', 'sms'],
+    });
+    await sendNotification({
+      userId: (seller.userId || '').toString(),
+      event: 'new_order_for_seller',
+      data: { orderNumber: order.orderNumber },
+      channels: ['in_app'],
+    });
+
+    // Loyalty: earn points on order placement
+    await earnPoints(session.id, total, order._id.toString());
+
+    // Referral: complete the referral when the referred customer's first order is placed
+    try {
+      const { completeReferral } = await import('@/services/referral.service');
+      await completeReferral(session.id);
+    } catch (err) {
+      console.error('[referral] complete failed:', err);
+    }
 
     return NextResponse.json({
       success: true,

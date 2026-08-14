@@ -9,6 +9,7 @@ export const registerSchema = z.object({
   email: z.string().email('Invalid email').optional().or(z.literal('')),
   password: z.string().min(6, 'Password must be at least 6 characters').max(100),
   role: z.enum(['customer', 'seller']).default('customer'),
+  referralCode: z.string().max(20).optional(),
 });
 
 export const loginSchema = z.object({
@@ -102,7 +103,7 @@ export const checkoutSchema = z.object({
   })).min(1),
   addressId: z.string().min(1, 'Delivery address is required'),
   deliveryMethod: z.enum(['seller_delivery', 'platform_delivery', 'self_pickup']),
-  paymentMethod: z.enum(['cod', 'bkash', 'nagad']),
+  paymentMethod: z.enum(['cod', 'bkash', 'nagad', 'sslcommerz']),
   couponCode: z.string().optional(),
   loyaltyPoints: z.number().int().min(0).optional(),
   notes: z.string().max(500).optional(),
