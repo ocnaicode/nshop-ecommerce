@@ -4,7 +4,10 @@ import { cookies } from 'next/headers';
 import { AUTH_CONFIG } from '@/config/constants';
 import { SessionUser } from '@/types';
 
-const secret = new TextEncoder().encode(AUTH_CONFIG.secret);
+// Resolved per-call so a missing AUTH_SECRET fails at request time, not at build time.
+function getSecretKey(): Uint8Array {
+  return new TextEncoder().encode(AUTH_CONFIG.secret);
+}
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12);
@@ -19,12 +22,12 @@ export async function createToken(payload: Record<string, unknown>): Promise<str
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(AUTH_CONFIG.tokenExpiry)
-    .sign(secret);
+    .sign(getSecretKey());
 }
 
 export async function verifyToken(token: string): Promise<Record<string, unknown> | null> {
   try {
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, getSecretKey());
     return payload as Record<string, unknown>;
   } catch {
     return null;
