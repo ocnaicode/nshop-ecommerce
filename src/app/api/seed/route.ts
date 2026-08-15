@@ -10,7 +10,38 @@ import { Product } from '@/models/Product';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
+/**
+ * Guards the destructive seed endpoint.
+ *
+ * This route deletes every document in 13 collections before reseeding, so it
+ * must never be callable by an anonymous request. Access requires SEED_SECRET
+ * to be configured and presented; when it is absent the route is disabled.
+ */
+function assertSeedAllowed(request: NextRequest): NextResponse | null {
+  const configuredSecret = process.env.SEED_SECRET;
+
+  if (!configuredSecret) {
+    return NextResponse.json(
+      { success: false, error: 'Seeding is disabled. Set SEED_SECRET to enable this endpoint.' },
+      { status: 404 }
+    );
+  }
+
+  const provided =
+    request.headers.get('x-seed-secret') ??
+    request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+
+  if (provided !== configuredSecret) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+
+  return null;
+}
+
 export async function POST(request: NextRequest) {
+  const denied = assertSeedAllowed(request);
+  if (denied) return denied;
+
   try {
     console.log('🌱 Starting seed...');
     await dbConnect();

@@ -5,8 +5,39 @@ export const APP_CONFIG = {
   version: '1.0.0',
 };
 
+/**
+ * Resolves the JWT signing secret, failing closed in production.
+ *
+ * Evaluated lazily (via the `secret` getter below) rather than at module load:
+ * Next.js runs builds with NODE_ENV=production, so an eager check would break
+ * `next build` on machines that legitimately have no runtime secret configured.
+ * Throwing on first *use* keeps the build green while guaranteeing the app can
+ * never sign or verify a session with a source-visible fallback in production.
+ */
+function resolveAuthSecret(): string {
+  const secret = process.env.AUTH_SECRET;
+
+  if (secret && secret.length >= 32) return secret;
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      secret
+        ? 'AUTH_SECRET is too short - it must be at least 32 characters. Generate one with: openssl rand -base64 32'
+        : 'AUTH_SECRET is not set. Refusing to handle authentication in production. Generate one with: openssl rand -base64 32'
+    );
+  }
+
+  if (!secret) {
+    console.warn('⚠️ AUTH_SECRET not set - using an insecure development-only fallback.');
+  }
+
+  return secret || 'dev-only-insecure-secret-change-me';
+}
+
 export const AUTH_CONFIG = {
-  secret: process.env.AUTH_SECRET || 'fallback-secret-change-me',
+  get secret() {
+    return resolveAuthSecret();
+  },
   tokenExpiry: process.env.AUTH_TOKEN_EXPIRY || '7d',
   refreshTokenExpiry: process.env.AUTH_REFRESH_TOKEN_EXPIRY || '30d',
   cookieName: 'localmart_session',
