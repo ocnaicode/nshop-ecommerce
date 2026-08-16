@@ -12,7 +12,7 @@ import Sidebar from '@/components/dashboard/sidebar';
 import StatCard from '@/components/dashboard/stat-card';
 import {
   LayoutDashboard, Users, Store, Package, ShoppingCart, DollarSign,
-  Truck, Star, Settings, Shield, Tag, BarChart3, Flag, Bell,
+  Truck, Star, Settings, Shield, Tag, BarChart3, Flag, Bell, Megaphone,
   Menu, Activity, Cpu, CheckCircle2, AlertTriangle, Clock,
 } from 'lucide-react';
 import { formatCurrency, getTimeAgo, cn } from '@/lib/utils';
@@ -61,6 +61,7 @@ const menuItems = [
   { icon: Tag, label: 'Coupons', href: '/admin/coupons' },
   { icon: Star, label: 'Reviews', href: '/admin/reviews' },
   { icon: BarChart3, label: 'Analytics', href: '/admin/analytics' },
+  { icon: Megaphone, label: 'Campaigns', href: '/admin/campaigns' },
   { icon: Flag, label: 'Disputes', href: '/admin/disputes' },
   { icon: Bell, label: 'Notifications', href: '/admin/notifications' },
   { icon: Settings, label: 'Settings', href: '/admin/settings' },
