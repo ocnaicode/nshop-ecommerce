@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers/auth-provider';
 import { Button } from '@/components/ui/button';
@@ -8,10 +8,34 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Truck, CreditCard, CheckCircle, Package, ArrowLeft } from 'lucide-react';
+import { MapPin, Truck, CreditCard, CheckCircle, ArrowLeft, Gift } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 import Link from 'next/link';
+
+interface PublicConfig {
+  payments: { enabledMethods: string[] };
+  loyalty: { enabled: boolean; redeemRate: number; maxRedeemPct: number };
+}
+
+interface ShippingEstimate {
+  deliveryFee: number;
+  distanceKm: number;
+  breakdown: {
+    baseFee: number;
+    distanceFee: number;
+    weightSurcharge: number;
+    totalFee: number;
+    freeDeliveryApplied: boolean;
+  };
+}
+
+const PAYMENT_LABELS: Record<string, { label: string; desc: string }> = {
+  cod: { label: 'Cash on Delivery', desc: 'Pay when you receive' },
+  bkash: { label: 'bKash', desc: 'Pay securely with bKash' },
+  nagad: { label: 'Nagad', desc: 'Pay securely with Nagad' },
+  sslcommerz: { label: 'SSLCommerz', desc: 'Cards, internet banking & mobile wallets' },
+};
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -19,7 +43,6 @@ export default function CheckoutPage() {
   const [cart, setCart] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
-  const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     addressId: '',
     deliveryMethod: 'seller_delivery',
@@ -28,19 +51,24 @@ export default function CheckoutPage() {
     notes: '',
   });
   const [addresses, setAddresses] = useState<any[]>([]);
-  const [deliveryFee, setDeliveryFee] = useState(0);
-  const [codFee, setCodFee] = useState(0);
+  const [deliveryFee, setDeliveryFee] = useState<number | null>(null);
+  const [estimate, setEstimate] = useState<ShippingEstimate | null>(null);
+  const [estimateLoading, setEstimateLoading] = useState(false);
+  const [config, setConfig] = useState<PublicConfig | null>(null);
+  const [loyaltyInput, setLoyaltyInput] = useState('');
+  const [loyaltyBalance, setLoyaltyBalance] = useState(0);
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-      return;
+  async function fetchLoyalty() {
+    try {
+      const res = await fetch('/api/customer/dashboard');
+      if (res.ok) {
+        const data = await res.json();
+        setLoyaltyBalance(data.data?.loyaltyPoints || 0);
+      }
+    } catch (err) {
+      console.error(err);
     }
-    if (user) {
-      fetchCart();
-      fetchAddresses();
-    }
-  }, [user, authLoading]);
+  }
 
   async function fetchCart() {
     try {
@@ -67,13 +95,77 @@ export default function CheckoutPage() {
         setAddresses(data.data || []);
         const defaultAddr = data.data?.find((a: any) => a.isDefault);
         if (defaultAddr) {
-          setFormData(prev => ({ ...prev, addressId: defaultAddr._id }));
+          setFormData((prev) => ({ ...prev, addressId: defaultAddr._id }));
         }
       }
     } catch (err) {
       console.error(err);
     }
   }
+
+  useEffect(() => {
+    fetch('/api/config/public')
+      .then((r) => r.json())
+      .then((d) => setConfig(d.data))
+      .catch(() => {});
+    if (!authLoading && !user) {
+      router.push('/login');
+      return;
+    }
+    if (user) {
+      fetchCart();
+      fetchAddresses();
+      fetchLoyalty();
+    }
+  }, [user, authLoading]);
+
+  // Live delivery-fee estimation
+  useEffect(() => {
+    if (!cart?.items?.length || !formData.addressId) {
+      setDeliveryFee(null);
+      setEstimate(null);
+      return;
+    }
+    const controller = new AbortController();
+    setEstimateLoading(true);
+    const items = cart.items.map((item: any) => ({
+      productId: item.productId._id || item.productId,
+      variantId: item.variantId,
+      quantity: item.quantity,
+    }));
+    fetch('/api/shipping/estimate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({ items, addressId: formData.addressId, deliveryMethod: formData.deliveryMethod }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) {
+          setDeliveryFee(d.data.deliveryFee);
+          setEstimate(d.data);
+        }
+      })
+      .catch((err) => {
+        if (err.name !== 'AbortError') setDeliveryFee(null);
+      })
+      .finally(() => setEstimateLoading(false));
+    return () => controller.abort();
+  }, [cart, formData.addressId, formData.deliveryMethod]);
+
+  const enabledPaymentMethods = useMemo(
+    () => config?.payments?.enabledMethods || ['cod'],
+    [config]
+  );
+
+  const loyaltyDiscount = useMemo(() => {
+    if (!config?.loyalty?.enabled || !loyaltyInput) return 0;
+    const points = parseInt(loyaltyInput, 10);
+    if (!points || points <= 0 || points > loyaltyBalance) return 0;
+    const subtotal = cart?.subtotal || 0;
+    const maxRedeemable = Math.floor((subtotal + (deliveryFee || 0)) * config.loyalty.maxRedeemPct);
+    return Math.floor(Math.min(points * config.loyalty.redeemRate, maxRedeemable));
+  }, [config, loyaltyInput, loyaltyBalance, cart, deliveryFee]);
 
   async function placeOrder() {
     if (!formData.addressId) {
@@ -94,12 +186,22 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           items,
           ...formData,
+          loyaltyPoints: loyaltyDiscount > 0 ? parseInt(loyaltyInput, 10) : 0,
         }),
       });
 
       const data = await res.json();
       if (data.success) {
-        toast.success('Order placed successfully!');
+        // Online payment: redirect to the gateway when available.
+        if (data.payment?.paymentUrl) {
+          window.location.href = data.payment.paymentUrl;
+          return;
+        }
+        if (data.payment && formData.paymentMethod !== 'cod') {
+          toast.success('Order placed! Complete your payment from your orders page.');
+        } else {
+          toast.success('Order placed successfully!');
+        }
         router.push(`/customer/orders/${data.data._id}`);
       } else {
         toast.error(data.error || 'Failed to place order');
@@ -120,7 +222,9 @@ export default function CheckoutPage() {
   }
 
   const subtotal = cart?.subtotal || 0;
-  const total = subtotal + deliveryFee + codFee;
+  const fee = deliveryFee ?? 0;
+  const codFeeToCharge = formData.paymentMethod === 'cod' ? 10 : 0;
+  const total = subtotal + fee + codFeeToCharge - loyaltyDiscount;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -194,36 +298,53 @@ export default function CheckoutPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {[
-                  { id: 'seller_delivery', label: 'Seller Delivery', desc: 'Delivered by the shop', fee: 30 },
-                  { id: 'platform_delivery', label: 'Platform Delivery', desc: 'Delivered by LocalMart', fee: '15%' },
-                  { id: 'self_pickup', label: 'Self Pickup', desc: 'Pick up from the shop', fee: 0 },
-                ].map((method) => (
-                  <label
-                    key={method.id}
-                    className={`flex items-center justify-between p-4 rounded-lg border-2 cursor-pointer transition-colors ${
-                      formData.deliveryMethod === method.id
-                        ? 'border-green-600 bg-green-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <input
-                        type="radio"
-                        name="delivery"
-                        value={method.id}
-                        checked={formData.deliveryMethod === method.id}
-                        onChange={(e) => setFormData({ ...formData, deliveryMethod: e.target.value })}
-                      />
-                      <div>
-                        <p className="font-medium">{method.label}</p>
-                        <p className="text-sm text-gray-500">{method.desc}</p>
+                  { id: 'seller_delivery', label: 'Seller Delivery', desc: 'Delivered by the shop, distance-based fee' },
+                  { id: 'platform_delivery', label: 'Platform Delivery', desc: 'Delivered by LocalMart riders' },
+                  { id: 'self_pickup', label: 'Self Pickup', desc: 'Pick up from the shop — free' },
+                ].map((method) => {
+                  const isSelected = formData.deliveryMethod === method.id;
+                  const isEstimate = estimate && estimate.breakdown && method.id !== 'self_pickup';
+                  return (
+                    <label
+                      key={method.id}
+                      className={`flex items-center justify-between p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                        isSelected ? 'border-green-600 bg-green-50' : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="radio"
+                          name="delivery"
+                          value={method.id}
+                          checked={isSelected}
+                          onChange={(e) => setFormData({ ...formData, deliveryMethod: e.target.value })}
+                        />
+                        <div>
+                          <p className="font-medium">{method.label}</p>
+                          <p className="text-sm text-gray-500">{method.desc}</p>
+                        </div>
                       </div>
-                    </div>
-                    <span className="font-medium text-gray-700">
-                      {method.fee === 0 ? 'Free' : typeof method.fee === 'number' ? formatCurrency(method.fee) : method.fee}
-                    </span>
-                  </label>
-                ))}
+                      <div className="text-right">
+                        {method.id === 'self_pickup' ? (
+                          <span className="font-medium text-gray-700">Free</span>
+                        ) : isSelected && isEstimate ? (
+                          <>
+                            <span className="font-medium text-gray-700">
+                              {estimateLoading ? 'Calculating…' : formatCurrency(estimate.breakdown.totalFee)}
+                            </span>
+                            <span className="block text-xs text-gray-400">
+                              ~{Math.round(estimate.distanceKm)} km away
+                            </span>
+                          </>
+                        ) : (
+                          <span className="font-medium text-gray-700">
+                            {isSelected ? (estimateLoading ? 'Calculating…' : formatCurrency(fee)) : 'Select'}
+                          </span>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
               </CardContent>
             </Card>
 
@@ -236,40 +357,76 @@ export default function CheckoutPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {[
-                  { id: 'cod', label: 'Cash on Delivery', desc: 'Pay when you receive', fee: '৳10' },
-                  { id: 'bkash', label: 'bKash', desc: 'Pay with bKash (coming soon)', disabled: true },
-                  { id: 'nagad', label: 'Nagad', desc: 'Pay with Nagad (coming soon)', disabled: true },
-                ].map((method) => (
-                  <label
-                    key={method.id}
-                    className={`flex items-center justify-between p-4 rounded-lg border-2 cursor-pointer transition-colors ${
-                      formData.paymentMethod === method.id
-                        ? 'border-green-600 bg-green-50'
-                        : method.disabled
-                        ? 'border-gray-100 opacity-50 cursor-not-allowed'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <input
-                        type="radio"
-                        name="payment"
-                        value={method.id}
-                        checked={formData.paymentMethod === method.id}
-                        onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                        disabled={method.disabled}
-                      />
-                      <div>
-                        <p className="font-medium">{method.label}</p>
-                        <p className="text-sm text-gray-500">{method.desc}</p>
+                {enabledPaymentMethods.map((id) => {
+                  const meta = PAYMENT_LABELS[id] || { label: id, desc: '' };
+                  return (
+                    <label
+                      key={id}
+                      className={`flex items-center justify-between p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                        formData.paymentMethod === id
+                          ? 'border-green-600 bg-green-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="radio"
+                          name="payment"
+                          value={id}
+                          checked={formData.paymentMethod === id}
+                          onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                        />
+                        <div>
+                          <p className="font-medium">{meta.label}</p>
+                          <p className="text-sm text-gray-500">{meta.desc}</p>
+                        </div>
                       </div>
-                    </div>
-                    <span className="text-sm text-gray-500">{method.fee}</span>
-                  </label>
-                ))}
+                      {id === 'cod' && <span className="text-sm text-gray-500">+৳10</span>}
+                      {id !== 'cod' && (
+                        <Badge variant="secondary" className="bg-green-100 text-green-700">
+                          Online
+                        </Badge>
+                      )}
+                    </label>
+                  );
+                })}
               </CardContent>
             </Card>
+
+            {/* Loyalty points */}
+            {config?.loyalty?.enabled && loyaltyBalance > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Gift className="w-5 h-5 text-green-600" />
+                    <span>Loyalty Points</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Label htmlFor="loyalty">
+                    Use loyalty points — {loyaltyBalance} available (1 point = ৳
+                    {config.loyalty.redeemRate}, up to {Math.round(config.loyalty.maxRedeemPct * 100)}% of order)
+                  </Label>
+                  <div className="flex items-center gap-3 mt-2">
+                    <Input
+                      id="loyalty"
+                      type="number"
+                      min={0}
+                      max={loyaltyBalance}
+                      placeholder="0"
+                      value={loyaltyInput}
+                      onChange={(e) => setLoyaltyInput(e.target.value)}
+                      className="max-w-[160px]"
+                    />
+                    {loyaltyDiscount > 0 && (
+                      <Badge className="bg-green-100 text-green-700">
+                        −{formatCurrency(loyaltyDiscount)}
+                      </Badge>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Notes */}
             <Card>
@@ -318,12 +475,33 @@ export default function CheckoutPage() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Delivery Fee</span>
-                    <span>{deliveryFee > 0 ? formatCurrency(deliveryFee) : 'Calculated'}</span>
+                    <span>
+                      {estimateLoading ? (
+                        <span className="text-gray-400">Calculating…</span>
+                      ) : formData.deliveryMethod === 'self_pickup' ? (
+                        'Free'
+                      ) : deliveryFee === null ? (
+                        <span className="text-gray-400">Select an address</span>
+                      ) : deliveryFee === 0 ? (
+                        'Free'
+                      ) : (
+                        formatCurrency(deliveryFee)
+                      )}
+                    </span>
                   </div>
+                  {estimate?.breakdown?.freeDeliveryApplied && (
+                    <p className="text-xs text-green-600">Free delivery threshold reached 🎉</p>
+                  )}
                   {formData.paymentMethod === 'cod' && (
                     <div className="flex justify-between text-sm">
                       <span>COD Fee</span>
                       <span>৳10</span>
+                    </div>
+                  )}
+                  {loyaltyDiscount > 0 && (
+                    <div className="flex justify-between text-sm text-green-600">
+                      <span>Loyalty Discount</span>
+                      <span>−{formatCurrency(loyaltyDiscount)}</span>
                     </div>
                   )}
                   <div className="border-t pt-2 flex justify-between font-bold">
@@ -340,6 +518,13 @@ export default function CheckoutPage() {
                 >
                   {placing ? 'Placing Order...' : 'Place Order'}
                 </Button>
+
+                {formData.paymentMethod !== 'cod' && (
+                  <p className="text-xs text-gray-500 text-center flex items-center justify-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                    You&apos;ll be redirected to the secure payment page after placing the order.
+                  </p>
+                )}
 
                 <p className="text-xs text-gray-500 text-center">
                   By placing this order, you agree to our terms and conditions

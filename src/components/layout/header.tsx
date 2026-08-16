@@ -10,12 +10,14 @@ import {
   Store, Search, ShoppingCart, User, Menu, X, MapPin, ChevronDown, LogOut, Package, Heart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import LanguageSwitcher from '@/components/layout/language-switcher';
+import { useLanguage } from '@/lib/use-language';
 
 const NAV_LINKS = [
-  { label: 'Shops', href: '/shops' },
-  { label: 'Products', href: '/products' },
-  { label: 'Categories', href: '/categories' },
-  { label: 'Offers', href: '/offers' },
+  { key: 'nav.shops', href: '/shops' },
+  { key: 'nav.products', href: '/products' },
+  { key: 'nav.categories', href: '/categories' },
+  { key: 'nav.offers', href: '/offers' },
 ];
 
 function dashboardHref(role?: string) {
@@ -28,6 +30,7 @@ export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading, logout } = useAuth();
+  const { t } = useLanguage();
   const [query, setQuery] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -65,7 +68,7 @@ export default function Header() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
               <Input
                 type="text"
-                placeholder="Search products, shops, brands…"
+                placeholder={`${t('common.search')}…`}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className="pl-10 pr-24 h-11 rounded-full bg-muted/50 focus:bg-white"
@@ -74,7 +77,7 @@ export default function Header() {
                 type="submit"
                 className="absolute right-1 top-1/2 -translate-y-1/2 h-9 px-4 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
               >
-                Search
+                {t('common.search')}
               </button>
             </div>
           </form>
@@ -90,7 +93,7 @@ export default function Header() {
                   isActive(link.href) ? 'text-primary bg-primary/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 )}
               >
-                {link.label}
+                {t(link.key)}
               </Link>
             ))}
           </nav>
@@ -99,8 +102,10 @@ export default function Header() {
           <div className="flex items-center gap-1.5">
             <Link href="/" className="hidden lg:flex items-center gap-1.5 px-2 py-2 text-sm text-gray-600 hover:text-primary">
               <MapPin className="w-4 h-4" />
-              <span className="max-w-[120px] truncate">Deliver to</span>
+              <span className="max-w-[120px] truncate">{t('common.browse')}</span>
             </Link>
+
+            <LanguageSwitcher />
 
             <Link href="/cart">
               <Button variant="ghost" size="icon" className="relative" aria-label="Cart">
@@ -134,27 +139,27 @@ export default function Header() {
                         onClick={() => setUserMenuOpen(false)}
                         className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
                       >
-                        <User className="w-4 h-4" /> Dashboard
+                        <User className="w-4 h-4" /> {t('nav.dashboard')}
                       </Link>
                       <Link
                         href="/customer/orders"
                         onClick={() => setUserMenuOpen(false)}
                         className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
                       >
-                        <Package className="w-4 h-4" /> My Orders
+                        <Package className="w-4 h-4" /> {t('nav.myOrders')}
                       </Link>
                       <Link
                         href="/customer/wishlist"
                         onClick={() => setUserMenuOpen(false)}
                         className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
                       >
-                        <Heart className="w-4 h-4" /> Wishlist
+                        <Heart className="w-4 h-4" /> {t('nav.wishlist')}
                       </Link>
                       <button
                         onClick={handleLogout}
                         className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
                       >
-                        <LogOut className="w-4 h-4" /> Logout
+                        <LogOut className="w-4 h-4" /> {t('common.logout')}
                       </button>
                     </div>
                   </>
@@ -162,7 +167,7 @@ export default function Header() {
               </div>
             ) : (
               <Link href="/login">
-                <Button size="sm" className="rounded-full px-5">Login</Button>
+                <Button size="sm" className="rounded-full px-5">{t('common.login')}</Button>
               </Link>
             )}
 
@@ -184,7 +189,7 @@ export default function Header() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input
               type="text"
-              placeholder="Search products, shops…"
+              placeholder={`${t('common.search')}…`}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="pl-9"
@@ -201,7 +206,7 @@ export default function Header() {
                   isActive(link.href) ? 'text-primary bg-primary/10' : 'text-gray-700 hover:bg-gray-50'
                 )}
               >
-                {link.label}
+                {t(link.key)}
               </Link>
             ))}
           </nav>

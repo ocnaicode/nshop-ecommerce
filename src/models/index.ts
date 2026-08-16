@@ -165,7 +165,7 @@ const paymentSchema = new Schema<IPaymentDocument>(
     orderId: { type: Schema.Types.ObjectId, ref: 'Order', required: true, index: true },
     customerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     sellerId: { type: Schema.Types.ObjectId, ref: 'Seller', required: true },
-    method: { type: String, enum: ['cod', 'bkash', 'nagad'], required: true },
+    method: { type: String, enum: ['cod', 'bkash', 'nagad', 'sslcommerz'], required: true },
     amount: { type: Number, required: true, min: 0 },
     status: {
       type: String,
@@ -1334,3 +1334,100 @@ const promotionSchema = new Schema<IPromotionDocument>(
 promotionSchema.index({ type: 1, isActive: 1, startDate: 1, endDate: 1 });
 
 export const Promotion = mongoose.models.Promotion || mongoose.model<IPromotionDocument>('Promotion', promotionSchema);
+
+// =============================================================================
+// Push Subscription (Web Push)
+// =============================================================================
+export interface IPushSubscriptionDocument extends Document {
+  userId: Types.ObjectId;
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  userAgent?: string;
+  isActive: boolean;
+}
+
+const pushSubscriptionSchema = new Schema<IPushSubscriptionDocument>(
+  {
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    endpoint: { type: String, required: true, unique: true },
+    keys: {
+      p256dh: { type: String, required: true },
+      auth: { type: String, required: true },
+    },
+    userAgent: String,
+    isActive: { type: Boolean, default: true },
+  },
+  { timestamps: true }
+);
+
+pushSubscriptionSchema.index({ userId: 1, isActive: 1 });
+
+export const PushSubscription = mongoose.models.PushSubscription ||
+  mongoose.model<IPushSubscriptionDocument>('PushSubscription', pushSubscriptionSchema);
+
+// =============================================================================
+// Marketing Campaign (Marketing Automation)
+// =============================================================================
+export interface IMarketingCampaignDocument extends Document {
+  name: string;
+  type: 'email' | 'sms' | 'push' | 'in_app' | 'multi';
+  subject?: string;
+  title: string;
+  body: string;
+  audience: {
+    roles?: string[];
+    segments?: string[];
+    userIds?: Types.ObjectId[];
+  };
+  scheduleAt?: Date;
+  status: 'draft' | 'scheduled' | 'sending' | 'sent' | 'cancelled' | 'failed';
+  sentCount: number;
+  failedCount: number;
+  stats: {
+    delivered: number;
+    opened: number;
+    clicked: number;
+  };
+  createdBy?: string;
+}
+
+const marketingCampaignSchema = new Schema<IMarketingCampaignDocument>(
+  {
+    name: { type: String, required: true, trim: true },
+    type: {
+      type: String,
+      enum: ['email', 'sms', 'push', 'in_app', 'multi'],
+      default: 'in_app',
+      required: true,
+    },
+    subject: String,
+    title: { type: String, required: true },
+    body: { type: String, required: true },
+    audience: {
+      roles: [{ type: String }],
+      segments: [{ type: String }],
+      userIds: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+    },
+    scheduleAt: Date,
+    status: {
+      type: String,
+      enum: ['draft', 'scheduled', 'sending', 'sent', 'cancelled', 'failed'],
+      default: 'draft',
+    },
+    sentCount: { type: Number, default: 0 },
+    failedCount: { type: Number, default: 0 },
+    stats: {
+      delivered: { type: Number, default: 0 },
+      opened: { type: Number, default: 0 },
+      clicked: { type: Number, default: 0 },
+    },
+    createdBy: String,
+  },
+  { timestamps: true }
+);
+
+marketingCampaignSchema.index({ status: 1, createdAt: -1 });
+marketingCampaignSchema.index({ scheduleAt: 1 });
+
+export const MarketingCampaign = mongoose.models.MarketingCampaign ||
+  mongoose.model<IMarketingCampaignDocument>('MarketingCampaign', marketingCampaignSchema);

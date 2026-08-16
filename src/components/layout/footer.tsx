@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Store, MapPin, Phone, Mail } from 'lucide-react';
+import LanguageSwitcher from '@/components/layout/language-switcher';
 
 function FacebookIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -141,7 +142,10 @@ export default function Footer() {
 
         <div className="border-t border-white/10 mt-12 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
           <p>&copy; {new Date().getFullYear()} LocalMart. All rights reserved.</p>
-          <p className="text-gray-500">Made with 💚 for local businesses in Bangladesh</p>
+          <div className="flex items-center gap-4">
+            <LanguageSwitcher />
+            <p className="text-gray-500">Made with 💚 for local businesses in Bangladesh</p>
+          </div>
         </div>
       </div>
     </footer>

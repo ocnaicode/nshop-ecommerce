@@ -7,13 +7,15 @@ A production-ready, full-stack location-based marketplace platform for Banglades
 ### For Customers
 - **Location-based discovery** - Find nearby shops and products
 - **Multi-vendor marketplace** - Shop from multiple local sellers
-- **Multiple payment methods** - Cash on Delivery, bKash, Nagad (payment abstraction ready)
+- **Multiple payment methods** - Cash on Delivery, bKash, Nagad, SSLCommerz (cards, internet banking, mobile wallets)
 - **Multiple delivery options** - Seller delivery, platform delivery, self pickup
+- **Advanced shipping calculator** - Distance-based zone pricing, free-delivery thresholds, platform fee caps, live checkout estimates
 - **Order tracking** - Real-time order status updates
 - **Reviews & ratings** - Rate products and sellers
 - **Wishlist & favorites** - Save products and shops
-- **Loyalty points** - Earn and redeem points
-- **Referral program** - Refer friends and earn rewards
+- **Loyalty & rewards program** - Earn points on every order, redeem at checkout, referral bonuses
+- **Push notifications** - Web Push (VAPID) alerts for order & payment updates
+- **Multi-language** - English and বাংলা (cookie & localStorage backed, switcher in header/footer)
 
 ### For Sellers
 - **Digital storefront** - Create and manage your shop
@@ -34,7 +36,9 @@ A production-ready, full-stack location-based marketplace platform for Banglades
 - **Feature flags** - Enable/disable features dynamically
 - **Delivery management** - Manage riders and deliveries
 - **Dispute resolution** - Handle customer-seller disputes
-- **Analytics & reporting** - Platform-wide insights
+- **Advanced analytics dashboard** - Revenue, orders, users & sellers with charts
+- **Marketing automation** - Create & send in-app/push/SMS/email campaigns to targeted audiences
+- **SEO optimization** - sitemap.xml, robots.txt, Open Graph, Twitter cards, JSON-LD, canonical URLs, security headers
 
 ## 🛠 Tech Stack
 
@@ -46,7 +50,8 @@ A production-ready, full-stack location-based marketplace platform for Banglades
 - **Authentication**: JWT with secure httpOnly cookies
 - **Validation**: Zod
 - **File Storage**: Cloudinary (ready)
-- **Payment**: Abstracted payment providers (COD, bKash, Nagad ready)
+- **Payment**: bKash (tokenized), Nagad, SSLCommerz (hosted v4) with sandbox-ready gateway abstraction
+- **Push Notifications**: Web Push (VAPID) with `web-push`
 - **AI**: Optional, provider-agnostic AI features
 
 ## 📋 Prerequisites
@@ -192,7 +197,14 @@ Key variables:
 - `MONGODB_URI` - MongoDB connection string
 - `AUTH_SECRET` - JWT signing secret
 - `CLOUDINARY_*` - Image storage (optional)
-- `BKASH_*` / `NAGAD_*` - Payment providers (optional)
+- `ENABLE_BKASH` + `BKASH_*` - bKash payment gateway (tokenized)
+- `ENABLE_NAGAD` + `NAGAD_*` - Nagad payment gateway
+- `ENABLE_SSLCOMMERZ` + `SSLCOMMERZ_*` - SSLCommerz payment gateway
+- `LOYALTY_*` - Loyalty & rewards program tuning
+- `PLATFORM_DELIVERY_MIN_FEE` / `PLATFORM_DELIVERY_MAX_FEE` - Shipping calculator caps
+- `NEXT_PUBLIC_ENABLE_PUSH` + `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` - Push notifications (generate with `npx web-push generate-vapid-keys`)
+- `SMS_*` / `SMTP_*` - Marketing automation channels
+- `NEXT_PUBLIC_OG_IMAGE` - Open Graph share image
 - `AI_*` - AI provider (optional, features disabled if not configured)
 
 ### Feature Flags
@@ -429,6 +441,44 @@ Update in `SystemConfig` collection or admin dashboard:
 ### Themes
 
 Modify CSS variables in `src/app/globals.css`
+
+## ☁️ Deploying to Vercel
+
+### 1. Import the project
+
+Push this repository to GitHub, then import it at [vercel.com/new](https://vercel.com/new) (or use the CLI):
+
+```bash
+npm i -g vercel
+vercel --prod
+```
+
+### 2. Required environment variables
+
+Set these in **Vercel → Project → Settings → Environment Variables** (Production + Preview):
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `MONGODB_URI` | ✅ | MongoDB Atlas connection string |
+| `AUTH_SECRET` | ✅ | Long random string — generate with `openssl rand -base64 32` |
+| `NEXT_PUBLIC_APP_URL` | ✅ | `https://your-app.vercel.app` |
+| `NEXT_PUBLIC_APP_NAME` / `NEXT_PUBLIC_APP_DESCRIPTION` | | Branding |
+| `ENABLE_BKASH` / `BKASH_APP_KEY` / `BKASH_APP_SECRET` / `BKASH_USERNAME` / `BKASH_PASSWORD` | 🧾 | Set `ENABLE_BKASH=true` + merchant credentials (sandbox by default) |
+| `ENABLE_NAGAD` / `NAGAD_MERCHANT_ID` / `NAGAD_MERCHANT_KEY` / `NAGAD_PG_PUBLIC_KEY` | 🧾 | Set `ENABLE_NAGAD=true` + merchant credentials |
+| `ENABLE_SSLCOMMERZ` / `SSLCOMMERZ_STORE_ID` / `SSLCOMMERZ_STORE_PASSWORD` | 🧾 | Set `ENABLE_SSLCOMMERZ=true` + store credentials (sandbox by default) |
+| `NEXT_PUBLIC_ENABLE_PUSH` | 🍎 | `true` to enable Web Push |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | 🍎 | `npx web-push generate-vapid-keys` |
+| `LOYALTY_EARN_RATE` / `LOYALTY_REDEEM_RATE` / `LOYALTY_MAX_REDEEM_PCT` / `LOYALTY_REFERRAL_BONUS` | | Loyalty tuning (sane defaults) |
+| `PLATFORM_DELIVERY_MIN_FEE` / `PLATFORM_DELIVERY_MAX_FEE` | | Shipping calculator caps |
+| `CLOUDINARY_*` | | Product image uploads |
+| `SMS_API_KEY` / `SMS_BASE_URL` / `SMTP_*` | | Marketing automation channels (optional) |
+| `NEXT_PUBLIC_OG_IMAGE` | | Open Graph image URL |
+
+> 🧾 Payment gateways: leave the `ENABLE_*` flags `false` (and credentials empty) to run COD-only; the checkout hides unconfigured gateways automatically.
+
+### 3. Database
+
+Use **MongoDB Atlas** (or any reachable MongoDB). Add the app's server IP to the Atlas network access allowlist, then run `npm run seed` locally once against the production URI, or call `POST /api/seed` from the Vercel app in demo mode.
 
 ## ⚠️ Important Notes
 

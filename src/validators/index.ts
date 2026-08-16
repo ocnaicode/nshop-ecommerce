@@ -102,7 +102,7 @@ export const checkoutSchema = z.object({
   })).min(1),
   addressId: z.string().min(1, 'Delivery address is required'),
   deliveryMethod: z.enum(['seller_delivery', 'platform_delivery', 'self_pickup']),
-  paymentMethod: z.enum(['cod', 'bkash', 'nagad']),
+  paymentMethod: z.enum(['cod', 'bkash', 'nagad', 'sslcommerz']),
   couponCode: z.string().optional(),
   loyaltyPoints: z.number().int().min(0).optional(),
   notes: z.string().max(500).optional(),
@@ -273,4 +273,35 @@ export const subscriptionPlanSchema = z.object({
   staffLimit: z.number().int().min(-1),
   features: z.record(z.string(), z.union([z.boolean(), z.number()])).default({}),
   order: z.number().int().default(0),
+});
+
+// =============================================================================
+// Marketing Campaign Validations
+// =============================================================================
+export const marketingCampaignSchema = z.object({
+  name: z.string().min(2).max(150),
+  type: z.enum(['email', 'sms', 'push', 'in_app', 'multi']).default('in_app'),
+  subject: z.string().max(200).optional(),
+  title: z.string().min(2).max(200),
+  body: z.string().min(1).max(10000),
+  audience: z.object({
+    roles: z.array(z.string()).optional(),
+    segments: z.array(z.string()).optional(),
+    userIds: z.array(z.string()).optional(),
+  }).default({}),
+  scheduleAt: z.string().optional(),
+  status: z.enum(['draft', 'scheduled', 'sending', 'sent', 'cancelled', 'failed']).default('draft'),
+});
+
+// =============================================================================
+// Shipping Estimate Validations
+// =============================================================================
+export const estimateSchema = z.object({
+  items: z.array(z.object({
+    productId: z.string(),
+    variantId: z.string().optional(),
+    quantity: z.number().int().min(1),
+  })).min(1),
+  addressId: z.string().min(1),
+  deliveryMethod: z.enum(['seller_delivery', 'platform_delivery', 'self_pickup']),
 });

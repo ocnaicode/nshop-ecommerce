@@ -72,6 +72,7 @@ export const PAYMENT_METHOD = {
   COD: 'cod',
   BKASH: 'bkash',
   NAGAD: 'nagad',
+  SSLCOMMERZ: 'sslcommerz',
 } as const;
 
 export const DELIVERY_METHOD = {
@@ -158,6 +159,31 @@ export const NOTIFICATION_EVENTS = {
   SUBSCRIPTION_EXPIRED: 'subscription_expired',
   REFERRAL_REWARDED: 'referral_rewarded',
   LOYALTY_REWARDED: 'loyalty_rewarded',
+} as const;
+
+export const LOYALTY_CONFIG = {
+  // Points earned per taka spent (1 point per ৳100 by default)
+  earnRate: Number(process.env.LOYALTY_EARN_RATE || 0.01),
+  // Taka value of a single point when redeeming
+  redeemRate: Number(process.env.LOYALTY_REDEEM_RATE || 1),
+  // Maximum share of the order subtotal that can be paid with points
+  maxRedeemPct: Number(process.env.LOYALTY_MAX_REDEEM_PCT || 0.2),
+  // Bonus points awarded to a referrer when their referral places an order
+  referralBonus: Number(process.env.LOYALTY_REFERRAL_BONUS || 50),
+} as const;
+
+export const PUSH_CONFIG = {
+  enabled: process.env.NEXT_PUBLIC_ENABLE_PUSH === 'true',
+  publicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
+  subject: process.env.VAPID_SUBJECT || '',
+} as const;
+
+export const SEO_CONFIG = {
+  title: 'LocalMart - All Local Shops in One Place',
+  description:
+    'Discover nearby local shops, order products, and support your local community. Bangladesh\'s premier location-based marketplace.',
+  keywords: ['marketplace', 'local shops', 'bangladesh', 'ecommerce', 'delivery', 'bkash', 'nagad'],
+  openGraphImage: process.env.NEXT_PUBLIC_OG_IMAGE || '/og-default.png',
 } as const;
 
 export const BANGLADESH_DIVISIONS = [

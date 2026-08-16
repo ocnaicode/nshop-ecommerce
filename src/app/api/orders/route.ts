@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
 import { Order } from '@/models/Order';
-import { Cart, Payment, SellerWallet, WalletTransaction, Delivery, CommissionRule, Coupon, SystemConfig } from '@/models/index';
+import { Cart, Payment, SellerWallet, WalletTransaction, Delivery, CommissionRule, Coupon, SystemConfig, LoyaltyAccount, LoyaltyTransaction, Referral } from '@/models/index';
 import { Product } from '@/models/Product';
 import { Shop } from '@/models/Shop';
 import { Seller } from '@/models/Seller';
-import { User } from '@/models/User';
 import { getSession, isAdmin } from '@/lib/auth';
 import { checkoutSchema, orderStatusSchema } from '@/validators';
 import { generateOrderNumber, generatePickupCode, calculateDistance, getPaginationParams } from '@/lib/utils';
+import { calculateShippingFee } from '@/lib/shipping';
+import { LOYALTY_CONFIG, NOTIFICATION_EVENTS } from '@/config/constants';
+import { initiateGatewayPayment, isPaymentMethodEnabled } from '@/lib/payments';
+import { notifyUser } from '@/lib/notify';
 
 export async function GET(request: NextRequest) {
   try {
@@ -176,35 +179,34 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    // Calculate delivery fee
+    // Calculate delivery fee (advanced shipping calculator)
     let deliveryFee = 0;
-    if (deliveryMethod === 'seller_delivery') {
+    let distanceKm = 0;
+    if (deliveryMethod !== 'self_pickup') {
       const customerLat = address.location.coordinates[1];
       const customerLng = address.location.coordinates[0];
       const shopLat = shop.location.coordinates[1];
       const shopLng = shop.location.coordinates[0];
-      const distance = calculateDistance(customerLat, customerLng, shopLat, shopLng);
-
-      // Find matching zone
-      const zones = seller.deliveryConfig.sellerDelivery.zones;
-      if (zones.length > 0) {
-        const zone = zones.find((z: any) => distance >= z.minDistance && distance <= z.maxDistance);
-        deliveryFee = zone ? zone.fee : zones[zones.length - 1].fee;
-      } else {
-        deliveryFee = 30; // Default
-      }
-
-      // Free delivery threshold
-      if (seller.deliveryConfig.sellerDelivery.freeDeliveryThreshold &&
-          subtotal >= seller.deliveryConfig.sellerDelivery.freeDeliveryThreshold) {
-        deliveryFee = 0;
-      }
-    } else if (deliveryMethod === 'platform_delivery') {
-      const { SystemConfig } = await import('@/models/index');
-      const config = await SystemConfig.findOne({ key: 'platform_delivery_percentage' });
-      const percentage = config?.value || 15;
-      deliveryFee = Math.round(subtotal * (percentage / 100));
+      distanceKm = calculateDistance(customerLat, customerLng, shopLat, shopLng);
     }
+
+    let platformPercentage = 15;
+    const platformConfig = await SystemConfig.findOne({ key: 'platform_delivery_percentage' });
+    if (platformConfig?.value) platformPercentage = Number(platformConfig.value);
+
+    const shipping = calculateShippingFee({
+      subtotal,
+      deliveryMethod,
+      distanceKm,
+      zones: seller.deliveryConfig?.sellerDelivery?.zones || [],
+      baseFee: seller.deliveryConfig?.sellerDelivery?.baseFee || 30,
+      perKmFee: seller.deliveryConfig?.sellerDelivery?.perKmFee,
+      freeDeliveryThreshold: seller.deliveryConfig?.sellerDelivery?.freeDeliveryThreshold,
+      platformPercentage,
+      platformMinFee: Number(process.env.PLATFORM_DELIVERY_MIN_FEE || 20),
+      platformMaxFee: Number(process.env.PLATFORM_DELIVERY_MAX_FEE || 300),
+    });
+    deliveryFee = shipping.totalFee;
 
     // COD fee
     let codFee = 0;
@@ -238,6 +240,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Loyalty points redemption
+    const loyaltyPointsUsed = validation.data.loyaltyPoints || 0;
+    let loyaltyDiscount = 0;
+    if (loyaltyPointsUsed > 0) {
+      if (loyaltyPointsUsed > (profile.loyaltyPoints || 0)) {
+        return NextResponse.json(
+          { success: false, error: 'Insufficient loyalty points' },
+          { status: 400 }
+        );
+      }
+      const maxRedeemable = Math.floor(
+        (subtotal + deliveryFee + codFee) * LOYALTY_CONFIG.maxRedeemPct
+      );
+      const pointValue = Math.min(
+        loyaltyPointsUsed * LOYALTY_CONFIG.redeemRate,
+        maxRedeemable
+      );
+      loyaltyDiscount = Math.floor(pointValue);
+    }
+
     // Calculate commission
     const { CommissionRule } = await import('@/models/index');
     let commissionRate = 5; // Default
@@ -260,7 +282,10 @@ export async function POST(request: NextRequest) {
       platformFee = Math.round(subtotal * ((config?.value || 15) / 100));
     }
 
-    const total = subtotal + deliveryFee + codFee - couponDiscount;
+    const total = Math.max(
+      0,
+      subtotal + deliveryFee + codFee - couponDiscount - loyaltyDiscount
+    );
 
     // Reserve stock
     for (const item of sellerItems) {
@@ -293,13 +318,15 @@ export async function POST(request: NextRequest) {
       status: 'pending',
       paymentStatus: paymentMethod === 'cod' ? 'pending' : 'pending',
       subtotal,
-      discount: couponDiscount,
+      discount: couponDiscount + loyaltyDiscount,
       codFee,
       platformFee,
       commission,
       total,
       couponCode: couponCode?.toUpperCase(),
       couponDiscount,
+      loyaltyPointsUsed,
+      loyaltyPointsEarned: Math.floor(total * LOYALTY_CONFIG.earnRate),
       notes,
       pickupCode: deliveryMethod === 'self_pickup' ? generatePickupCode() : undefined,
       timeline: [{
@@ -319,7 +346,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Create payment record
-    await Payment.create({
+    const payment = await Payment.create({
       orderId: order._id,
       customerId: session.id,
       sellerId,
@@ -327,6 +354,88 @@ export async function POST(request: NextRequest) {
       amount: total,
       status: paymentMethod === 'cod' ? 'pending' : 'pending',
     });
+
+    // Redeem loyalty points (deduct balance & log transaction)
+    if (loyaltyPointsUsed > 0 && loyaltyDiscount > 0) {
+      const account = await LoyaltyAccount.findOneAndUpdate(
+        { customerId: session.id },
+        { $inc: { points: -loyaltyPointsUsed, totalRedeemed: loyaltyPointsUsed } },
+        { upsert: true, new: true }
+      );
+      await LoyaltyTransaction.create({
+        accountId: account._id,
+        customerId: session.id,
+        type: 'redeemed',
+        points: -loyaltyPointsUsed,
+        description: `Redeemed on order ${order.orderNumber}`,
+        referenceId: order._id,
+        referenceType: 'order',
+      });
+      await CustomerProfile.findOneAndUpdate(
+        { userId: session.id },
+        { $inc: { loyaltyPoints: -loyaltyPointsUsed } }
+      );
+    }
+
+    // Earn loyalty points
+    const pointsEarned = Math.floor(total * LOYALTY_CONFIG.earnRate);
+    if (pointsEarned > 0) {
+      const account = await LoyaltyAccount.findOneAndUpdate(
+        { customerId: session.id },
+        { $inc: { points: pointsEarned, totalEarned: pointsEarned } },
+        { upsert: true, new: true }
+      );
+      await LoyaltyTransaction.create({
+        accountId: account._id,
+        customerId: session.id,
+        type: 'earned',
+        points: pointsEarned,
+        description: `Earned on order ${order.orderNumber}`,
+        referenceId: order._id,
+        referenceType: 'order',
+      });
+      await CustomerProfile.findOneAndUpdate(
+        { userId: session.id },
+        { $inc: { loyaltyPoints: pointsEarned } }
+      );
+    }
+
+    // Referral bonus — award the referrer when the referred customer places an order
+    if (profile.referredBy && profile.referredBy !== String(session.id)) {
+      const existing = await Referral.findOne({ referredId: session.id });
+      if (!existing) {
+        await Referral.create({
+          referrerId: profile.referredBy,
+          referrerType: 'customer',
+          referredId: session.id,
+          referredType: 'customer',
+          status: 'completed',
+          rewardAmount: LOYALTY_CONFIG.referralBonus,
+          rewardType: 'loyalty_points',
+        });
+        const bonus = LOYALTY_CONFIG.referralBonus;
+        const referrerAccount = await LoyaltyAccount.findOneAndUpdate(
+          { customerId: profile.referredBy },
+          { $inc: { points: bonus, totalEarned: bonus } },
+          { upsert: true, new: true }
+        );
+        await LoyaltyTransaction.create({
+          accountId: referrerAccount._id,
+          customerId: profile.referredBy,
+          type: 'bonus',
+          points: bonus,
+          description: `Referral bonus — ${order.orderNumber}`,
+          referenceId: order._id,
+          referenceType: 'order',
+        });
+        await notifyUser({
+          userId: String(profile.referredBy),
+          type: NOTIFICATION_EVENTS.REFERRAL_REWARDED,
+          title: 'Referral Reward!',
+          message: `You earned ${bonus} loyalty points from a successful referral.`,
+        });
+      }
+    }
 
     // Update coupon usage
     if (couponCode) {
@@ -351,9 +460,53 @@ export async function POST(request: NextRequest) {
     // Update shop order count
     await Shop.findByIdAndUpdate(seller.shopId, { $inc: { totalOrders: 1 } });
 
+    // Notify customer (order placed)
+    await notifyUser({
+      userId: session.id,
+      type: NOTIFICATION_EVENTS.ORDER_CREATED,
+      title: 'Order Placed',
+      message: `Your order ${order.orderNumber} (৳${total}) has been placed successfully.`,
+      data: { orderId: String(order._id) },
+      phone: session.phone,
+      email: session.email,
+    });
+
+    // Initiate gateway payment for online payment methods
+    let paymentInfo: Record<string, unknown> | null = null;
+    if (paymentMethod !== 'cod' && isPaymentMethodEnabled(paymentMethod)) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const gateway = await initiateGatewayPayment({
+        method: paymentMethod,
+        amount: total,
+        orderNumber: order.orderNumber,
+        customer: { name: session.name, phone: session.phone, email: session.email },
+        productName: orderItems[0]?.name || 'LocalMart Order',
+        returnUrl: `${appUrl}/api/payments/${paymentMethod}/callback`,
+        callbackUrl: `${appUrl}/api/payments/${paymentMethod}/callback`,
+      });
+      if (gateway.transactionId) {
+        await Payment.updateOne(
+          { _id: payment._id },
+          {
+            $set: {
+              transactionId: gateway.transactionId,
+              gatewayResponse: { initiatedAt: new Date().toISOString(), status: gateway.status },
+            },
+          }
+        );
+      }
+      paymentInfo = {
+        method: paymentMethod,
+        status: gateway.status,
+        paymentUrl: gateway.gatewayUrl || null,
+        transactionId: gateway.transactionId || null,
+      };
+    }
+
     return NextResponse.json({
       success: true,
       data: order,
+      payment: paymentInfo,
       message: 'Order placed successfully',
     }, { status: 201 });
   } catch (error) {

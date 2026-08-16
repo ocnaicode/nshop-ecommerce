@@ -113,7 +113,7 @@ const orderSchema = new Schema<IOrderDocument>(
     deliveryFee: { type: Number, default: 0, min: 0 },
     paymentMethod: {
       type: String,
-      enum: ['cod', 'bkash', 'nagad'],
+      enum: ['cod', 'bkash', 'nagad', 'sslcommerz'],
       required: true,
     },
     paymentStatus: {
