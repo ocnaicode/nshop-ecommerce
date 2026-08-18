@@ -8,12 +8,10 @@ import { useAuth } from '@/components/providers/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import Sidebar from '@/components/dashboard/sidebar';
 import StatCard from '@/components/dashboard/stat-card';
 import {
-  Store, Package, ShoppingCart, Users, TrendingUp,
-  DollarSign, Settings, BarChart3, Plus, List,
-  Truck, CreditCard, Star, Menu, Percent, Receipt, Star as StarIcon,
+  Package, ShoppingCart, TrendingUp,
+  DollarSign, Plus, CreditCard, Star, Percent, Receipt, Star as StarIcon,
 } from 'lucide-react';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 
@@ -54,19 +52,6 @@ interface ProductRow {
   images?: string[];
 }
 
-const menuItems = [
-  { icon: BarChart3, label: 'Dashboard', href: '/seller', active: true },
-  { icon: Package, label: 'Products', href: '/seller/products' },
-  { icon: ShoppingCart, label: 'Orders', href: '/seller/orders' },
-  { icon: List, label: 'Inventory', href: '/seller/inventory' },
-  { icon: CreditCard, label: 'POS', href: '/seller/pos' },
-  { icon: Users, label: 'Customers', href: '/seller/customers' },
-  { icon: Truck, label: 'Delivery', href: '/seller/delivery' },
-  { icon: DollarSign, label: 'Wallet', href: '/seller/wallet' },
-  { icon: Star, label: 'Reviews', href: '/seller/reviews' },
-  { icon: Settings, label: 'Settings', href: '/seller/settings' },
-];
-
 function statusVariant(status: string) {
   if (status === 'delivered') return 'success';
   if (status === 'pending') return 'warning';
@@ -76,10 +61,9 @@ function statusVariant(status: string) {
 
 export default function SellerDashboard() {
   const router = useRouter();
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const fetchDashboard = async () => {
     try {
@@ -107,11 +91,6 @@ export default function SellerDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
 
-  const handleLogout = async () => {
-    await logout();
-    router.push('/');
-  };
-
   if (authLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -123,25 +102,11 @@ export default function SellerDashboard() {
   const stats = data?.stats;
 
   return (
-    <div className="min-h-screen bg-gray-100 flex">
-      <Sidebar
-        variant="light"
-        brandTitle="Seller Panel"
-        brandSubtitle="LocalMart"
-        brandIcon={Store}
-        items={menuItems}
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        onLogout={handleLogout}
-      />
-
+    <div className="min-h-screen bg-gray-100 flex flex-col">
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
         <header className="bg-white shadow-sm px-6 py-4 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 rounded-lg hover:bg-gray-100">
-              <Menu className="w-6 h-6" />
-            </button>
             <div>
               <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
               <p className="text-xs text-gray-500">Welcome back, {user.name}</p>

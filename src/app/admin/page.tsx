@@ -8,12 +8,10 @@ import { useAuth } from '@/components/providers/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import Sidebar from '@/components/dashboard/sidebar';
 import StatCard from '@/components/dashboard/stat-card';
 import {
-  LayoutDashboard, Users, Store, Package, ShoppingCart, DollarSign,
-  Truck, Star, Settings, Shield, Tag, BarChart3, Flag, Bell, Megaphone,
-  Menu, Activity, Cpu, CheckCircle2, AlertTriangle, Clock,
+  Users, Store, Package, ShoppingCart, DollarSign,
+  Shield, Activity, Cpu, CheckCircle2, AlertTriangle, Clock,
 } from 'lucide-react';
 import { formatCurrency, getTimeAgo, cn } from '@/lib/utils';
 
@@ -48,32 +46,12 @@ interface FeatureFlag {
   enabled: boolean;
 }
 
-const menuItems = [
-  { icon: LayoutDashboard, label: 'Overview', href: '/admin', active: true },
-  { icon: Users, label: 'Users', href: '/admin/users' },
-  { icon: Store, label: 'Sellers', href: '/admin/sellers' },
-  { icon: Store, label: 'Shops', href: '/admin/shops' },
-  { icon: Package, label: 'Products', href: '/admin/products' },
-  { icon: ShoppingCart, label: 'Orders', href: '/admin/orders' },
-  { icon: DollarSign, label: 'Payments', href: '/admin/payments' },
-  { icon: Truck, label: 'Delivery', href: '/admin/delivery' },
-  { icon: Users, label: 'Riders', href: '/admin/riders' },
-  { icon: Tag, label: 'Coupons', href: '/admin/coupons' },
-  { icon: Star, label: 'Reviews', href: '/admin/reviews' },
-  { icon: BarChart3, label: 'Analytics', href: '/admin/analytics' },
-  { icon: Megaphone, label: 'Campaigns', href: '/admin/campaigns' },
-  { icon: Flag, label: 'Disputes', href: '/admin/disputes' },
-  { icon: Bell, label: 'Notifications', href: '/admin/notifications' },
-  { icon: Settings, label: 'Settings', href: '/admin/settings' },
-];
-
 export default function AdminDashboard() {
   const router = useRouter();
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [data, setData] = useState<AdminData | null>(null);
   const [flags, setFlags] = useState<FeatureFlag[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [togglingFlag, setTogglingFlag] = useState<string | null>(null);
 
   const fetchDashboard = async () => {
@@ -154,26 +132,11 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-200 flex">
-      <Sidebar
-        variant="dark"
-        brandTitle="Admin Panel"
-        brandSubtitle="LocalMart Control"
-        brandIcon={Shield}
-        items={menuItems}
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        onLogout={handleLogout}
-        headerClassName="from-gray-900 via-gray-900 to-indigo-950 border-b border-white/10"
-      />
-
+    <div className="min-h-screen bg-gray-950 text-gray-200 flex flex-col">
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
         <header className="bg-gray-900/80 backdrop-blur border-b border-white/10 px-6 py-4 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 rounded-lg hover:bg-white/5">
-              <Menu className="w-6 h-6" />
-            </button>
             <h1 className="text-xl font-bold text-white">Admin Dashboard</h1>
           </div>
           <div className="flex items-center gap-3">
