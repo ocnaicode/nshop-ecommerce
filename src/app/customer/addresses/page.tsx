@@ -83,6 +83,22 @@ export default function CustomerAddressesPage() {
     }
   }
 
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this address?')) return;
+    try {
+      const res = await fetch(`/api/customer/addresses/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Address deleted');
+        fetchAddresses();
+      } else {
+        toast.error(data.error || 'Failed to delete address');
+      }
+    } catch {
+      toast.error('Failed to delete address');
+    }
+  }
+
   if (authLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
