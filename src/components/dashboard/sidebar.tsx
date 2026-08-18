@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { LogOut, X, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -38,6 +39,14 @@ export default function Sidebar({
   headerClassName,
 }: SidebarProps) {
   const dark = variant === 'dark';
+  const pathname = usePathname();
+
+  function isActive(href: string) {
+    if (href === '/admin' || href === '/seller' || href === '/customer') {
+      return pathname === href;
+    }
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
 
   return (
     <>
@@ -84,7 +93,7 @@ export default function Sidebar({
               href={item.href}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                item.active
+                isActive(item.href)
                   ? 'bg-green-600 text-white shadow-sm'
                   : dark
                     ? 'text-gray-400 hover:bg-white/5 hover:text-white'

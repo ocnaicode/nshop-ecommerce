@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MapPin, Plus } from 'lucide-react';
+import { MapPin, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function CustomerAddressesPage() {
@@ -222,6 +222,15 @@ export default function CustomerAddressesPage() {
                         </p>
                       </div>
                     </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDelete(address._id)}
+                      className="text-red-600 border-red-200 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" /> Delete
+                    </Button>
                   </div>
                 ))}
               </div>
