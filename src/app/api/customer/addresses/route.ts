@@ -31,8 +31,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validation = addressSchema.safeParse(body);
     if (!validation.success) {
+      const fieldErrors = validation.error.flatten().fieldErrors;
+      const firstError = Object.values(fieldErrors).flat().find(Boolean);
       return NextResponse.json(
-        { success: false, errors: validation.error.flatten().fieldErrors },
+        {
+          success: false,
+          error: firstError || 'Please fill in all required address fields',
+          errors: fieldErrors,
+        },
         { status: 400 }
       );
     }
